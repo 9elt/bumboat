@@ -1,0 +1,155 @@
+syntax = "proto3";
+
+package bumboat.v1;
+
+option go_package = "github.com/9elt/bumboat/api";
+
+service Bumboat {
+  rpc ListServices(Empty) returns (ServiceList);
+  rpc WatchServices(Empty) returns (stream ServiceList);
+  rpc GetService(Ref) returns (Service);
+  rpc CreateService(Service) returns (Service);
+  rpc UpdateService(Service) returns (Service);
+  rpc DeleteService(Ref) returns (Empty);
+
+  rpc Deploy(Ref) returns (Deployment);
+  rpc Rollback(Ref) returns (Deployment);
+  rpc Restart(Ref) returns (Empty);
+  rpc Stop(Ref) returns (Empty);
+  rpc ListDeployments(Ref) returns (DeploymentList);
+  rpc StreamLogs(LogsRequest) returns (stream LogLine);
+
+  rpc GetSettings(Empty) returns (Settings);
+  rpc UpdateSettings(Settings) returns (Settings);
+  rpc ConnectGitHub(ConnectGitHubRequest) returns (ConnectGitHubReply);
+  rpc ListRepos(Empty) returns (RepoList);
+  rpc ListBranches(Ref) returns (BranchList);
+  rpc SuggestBuild(SuggestBuildRequest) returns (SuggestBuildReply);
+}
+
+message Empty {}
+
+message Ref {
+  string name = 1;
+  int64 id = 2;
+}
+
+message EnvVar {
+  string key = 1;
+  string value = 2;
+  bool build = 3;
+}
+
+message Domain {
+  string host = 1;
+  string path = 2;
+  string cert = 3;
+  repeated string resolves = 4;
+}
+
+message Volume {
+  string name = 1;
+  string path = 2;
+}
+
+message Service {
+  string name = 1;
+  string source = 2;
+  string repo = 3;
+  string branch = 4;
+  string image = 5;
+  string build = 6;
+  string dockerfile = 7;
+  string context = 8;
+  int32 port = 9;
+  string health_path = 10;
+  bool auto_deploy = 11;
+  repeated EnvVar env = 12;
+  repeated Domain domains = 13;
+  repeated Volume volumes = 14;
+
+  string state = 20;
+  bool dirty = 21;
+  Deployment live = 22;
+  Deployment last = 23;
+  double cpu = 24;
+  int64 mem = 25;
+}
+
+message Host {
+  int32 cpus = 1;
+  int64 mem_total = 2;
+  int64 mem_used = 3;
+}
+
+message ServiceList {
+  repeated Service services = 1;
+  Host host = 2;
+}
+
+message Deployment {
+  int64 id = 1;
+  string service = 2;
+  string sha = 3;
+  string message = 4;
+  string image = 5;
+  string status = 6;
+  string error = 7;
+  int64 started = 8;
+  int64 finished = 9;
+}
+
+message DeploymentList {
+  repeated Deployment deployments = 1;
+}
+
+message LogsRequest {
+  string service = 1;
+  int64 deployment = 2;
+  bool build = 3;
+  bool follow = 4;
+  int32 tail = 5;
+}
+
+message LogLine {
+  string text = 1;
+}
+
+message Settings {
+  string acme_email = 1;
+  int32 builds = 2;
+  string webhook_host = 3;
+  string github_app = 4;
+  Host host = 5;
+}
+
+message ConnectGitHubRequest {
+  string webhook_host = 1;
+  string org = 2;
+}
+
+message ConnectGitHubReply {
+  string url = 1;
+}
+
+message Repo {
+  string full_name = 1;
+  string default_branch = 2;
+}
+
+message RepoList {
+  repeated Repo repos = 1;
+}
+
+message BranchList {
+  repeated string branches = 1;
+}
+
+message SuggestBuildRequest {
+  string repo = 1;
+  string branch = 2;
+}
+
+message SuggestBuildReply {
+  string build = 1;
+}

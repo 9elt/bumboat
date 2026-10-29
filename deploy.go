@@ -77,7 +77,11 @@ func (d *daemon) dispatch() {
 				d.run(dep)
 				d.mu.Lock()
 				delete(d.running, service)
+				idle := len(d.running) == 0 && len(d.pending) == 0
 				d.mu.Unlock()
+				if idle {
+					d.stopBuilder()
+				}
 				d.kick()
 				d.changed()
 			}()
@@ -260,8 +264,8 @@ func (d *daemon) clone(ctx context.Context, sv *api.Service, dep *api.Deployment
 
 func (d *daemon) build(ctx context.Context, sv *api.Service, dir, image string, w io.Writer) error {
 	context := filepath.Join(dir, sv.Context)
-	args := []string{"build", "--progress=plain", "-t", image}
-	env := os.Environ()
+	args := []string{"buildx", "build", "--builder", "bumboat", "--load", "--progress=plain", "-t", image}
+	env := d.dockerEnv()
 	var buildEnv []*api.EnvVar
 	for _, e := range sv.Env {
 		if e.Build {
@@ -296,12 +300,44 @@ func (d *daemon) build(ctx context.Context, sv *api.Service, dir, image string, 
 		}
 	}
 
+	d.builder.RLock()
+	defer d.builder.RUnlock()
 	cmd := exec.CommandContext(ctx, "docker", append(args, context)...)
 	cmd.Env, cmd.Stdout, cmd.Stderr = env, w, w
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("docker build: %w", err)
 	}
 	return nil
+}
+
+func (d *daemon) dockerEnv() []string {
+	return append(os.Environ(), "DOCKER_CONFIG="+filepath.Join(d.dir, "docker"))
+}
+
+func (d *daemon) ensureBuilder() error {
+	inspect := exec.Command("docker", "buildx", "inspect", "bumboat")
+	inspect.Env = d.dockerEnv()
+	if inspect.Run() == nil {
+		return nil
+	}
+	create := exec.Command("docker", "buildx", "create", "--name", "bumboat", "--driver", "docker-container")
+	create.Env = d.dockerEnv()
+	if out, err := create.CombinedOutput(); err != nil {
+		return fmt.Errorf("buildx create: %s", out)
+	}
+	return nil
+}
+
+func (d *daemon) stopBuilder() {
+	if !d.builder.TryLock() {
+		return
+	}
+	defer d.builder.Unlock()
+	stop := exec.Command("docker", "buildx", "stop", "bumboat")
+	stop.Env = d.dockerEnv()
+	if out, err := stop.CombinedOutput(); err != nil {
+		log.Printf("buildx stop: %s", out)
+	}
 }
 
 func (d *daemon) railpack(ctx context.Context, w io.Writer) (string, error) {

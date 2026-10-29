@@ -32,6 +32,7 @@ type daemon struct {
 	gh  *github
 	px  *proxy
 
+	builder sync.RWMutex
 	mu      sync.Mutex
 	live    map[string]*live
 	pending map[string]*api.Deployment
@@ -81,6 +82,9 @@ func runDaemon() error {
 	ctx := context.Background()
 	if err := d.dk.ensureNetwork(ctx); err != nil {
 		return fmt.Errorf("docker: %w", err)
+	}
+	if err := d.ensureBuilder(); err != nil {
+		log.Printf("builds from repos will fail until the docker buildx plugin works: %v", err)
 	}
 	if err := d.reconcile(ctx); err != nil {
 		return fmt.Errorf("reconcile: %w", err)

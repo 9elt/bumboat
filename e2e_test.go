@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -171,6 +172,11 @@ func TestE2E(t *testing.T) {
 	if d2.st, err = openStore(dir, filepath.Join(dir, "master.key")); err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() {
+		rm := exec.Command("docker", "buildx", "rm", "bumboat")
+		rm.Env = d2.dockerEnv()
+		rm.Run()
+	})
 	if err := d2.reconcile(ctx); err != nil || d2.live["web"] == nil || d2.live["who"] == nil {
 		t.Fatalf("reconcile: %v %+v", err, d2.live)
 	}
@@ -200,6 +206,10 @@ func TestE2E(t *testing.T) {
 		"index.js":     `require("http").createServer((q, s) => s.end("railpack " + process.env.MSG)).listen(process.env.PORT || 3000)`,
 	}, &api.Service{Build: "railpack", Context: ".", Env: []*api.EnvVar{{Key: "BUILD_SECRET", Value: "s", Build: true}}})
 	image := out[strings.LastIndex(out, "image ")+6:]
+	d2.stopBuilder()
+	if _, running, err := dk.inspect(ctx, "buildx_buildkit_bumboat0"); err != nil || running {
+		t.Fatalf("the builder should stop once builds are done: running=%v err=%v", running, err)
+	}
 	cfg := &containerConfig{Image: image, Env: []string{"PORT=3000", "MSG=works"}, Labels: map[string]string{"e2e": "1"}}
 	id, err := dk.create(ctx, "bumboat-e2e-railpack", cfg)
 	if err == nil {

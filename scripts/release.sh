@@ -1,13 +1,15 @@
 #!/bin/sh
-# Builds the release assets that install.sh and `bumboat upgrade` download.
-# usage: scripts/release.sh v0.1.0, then upload dist/* to a GitHub release with that tag.
+# usage: scripts/release.sh v0.1.0
+# Tags HEAD and pushes the tag; .github/workflows/release.yml builds and publishes the release.
 set -eu
 cd "$(dirname "$0")/.."
-tag=${1:?usage: scripts/release.sh <tag>}
+tag=${1:?usage: scripts/release.sh v1.2.3}
 
-rm -rf dist && mkdir dist
-for arch in amd64 arm64; do
-	GOOS=linux GOARCH=$arch CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=$tag" -o "dist/bumboat-linux-$arch" .
-done
-(cd dist && shasum -a 256 bumboat-linux-* >checksums.txt)
-ls -lh dist
+echo "$tag" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' || { echo "tag must look like v1.2.3" >&2; exit 1; }
+[ -z "$(git status --porcelain)" ] || { echo "commit or stash your changes first" >&2; exit 1; }
+git rev-parse -q --verify "refs/tags/$tag" >/dev/null && { echo "$tag already exists" >&2; exit 1; }
+
+go test ./...
+git tag -a "$tag" -m "$tag"
+git push origin "$tag"
+echo "pushed $tag: GitHub Actions is building the release"

@@ -32,5 +32,5 @@ State: `/var/lib/bumboat` and `/etc/bumboat/master.key`.
 buf generate        # after editing proto/
 go test ./...
 scripts/e2e.sh      # end to end against the local Docker
-scripts/release.sh v0.1.0
+scripts/release.sh v0.1.0   # tag + push; GitHub Actions publishes the release
 ```

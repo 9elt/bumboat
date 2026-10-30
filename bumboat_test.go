@@ -482,3 +482,21 @@ func TestServiceDraftEditing(t *testing.T) {
 		t.Fatalf(":q with unsaved changes should refuse, got %q", m.msg)
 	}
 }
+
+func TestLeavingLogsDropsStaleLines(t *testing.T) {
+	sv := &api.Service{Name: "web", Source: "image", Image: "nginx", Port: 80}
+	m := newModel(nil)
+	m.screen, m.name, m.base, m.draft, m.tab = "service", "web", sv, config(sv), 2
+	_, cancel := context.WithCancel(context.Background())
+	m.logCancel, m.follow = cancel, true
+	gen := m.logGen
+	m.Update(tea.KeyMsg{Type: tea.KeyCtrlL})
+	if tabs[m.tab] != "env" {
+		t.Fatalf("ctrl-l: tab %s", tabs[m.tab])
+	}
+	m.Update(logsMsg{gen: gen, lines: make([]string, 500)})
+	m.Update(logsMsg{gen: gen, done: true})
+	if m.cursor != 0 || m.offset != 0 || m.msg == "end of log" {
+		t.Fatalf("stale log stream leaked into env: cursor %d offset %d msg %q", m.cursor, m.offset, m.msg)
+	}
+}

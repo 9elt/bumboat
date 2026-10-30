@@ -38,6 +38,7 @@ type daemon struct {
 	pending map[string]*api.Deployment
 	running map[string]bool
 	stats   map[string][2]float64
+	hostCPU float64
 	wake    chan struct{}
 
 	subsMu sync.Mutex
@@ -194,6 +195,28 @@ func hostResources() (cpus int, total, used int64) {
 	return cpus, total, total - available
 }
 
+// cpuTimes reads the busy and total jiffies of all CPUs from /proc/stat.
+func cpuTimes() (busy, total uint64) {
+	b, _ := os.ReadFile("/proc/stat")
+	line, _, _ := strings.Cut(string(b), "\n")
+	fields := strings.Fields(line)
+	for i, f := range fields[min(1, len(fields)):min(9, len(fields))] { // guest time is already in user and nice
+		n, _ := strconv.ParseUint(f, 10, 64)
+		total += n
+		if i != 3 && i != 4 {
+			busy += n
+		}
+	}
+	return busy, total
+}
+
+func (d *daemon) host() *api.Host {
+	cpus, total, used := hostResources()
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return &api.Host{Cpus: int32(cpus), MemTotal: total, MemUsed: used, Cpu: d.hostCPU}
+}
+
 func (d *daemon) list() (*api.ServiceList, error) {
 	services, _, err := d.st.services("")
 	if err != nil {
@@ -217,8 +240,7 @@ func (d *daemon) list() (*api.ServiceList, error) {
 		sv.Cpu, sv.Mem = d.stats[sv.Name][0], int64(d.stats[sv.Name][1])
 	}
 	d.mu.Unlock()
-	cpus, total, used := hostResources()
-	return &api.ServiceList{Services: services, Host: &api.Host{Cpus: int32(cpus), MemTotal: total, MemUsed: used}}, nil
+	return &api.ServiceList{Services: services, Host: d.host()}, nil
 }
 
 func (d *daemon) changed() {
@@ -242,7 +264,15 @@ func (d *daemon) changed() {
 }
 
 func (d *daemon) watchStats() {
+	busy, total := cpuTimes()
 	for range time.Tick(5 * time.Second) {
+		b, t := cpuTimes()
+		if t > total {
+			d.mu.Lock()
+			d.hostCPU = float64(b-busy) / float64(t-total) * 100
+			d.mu.Unlock()
+		}
+		busy, total = b, t
 		d.subsMu.Lock()
 		watched := len(d.subs) > 0
 		d.subsMu.Unlock()
@@ -478,13 +508,12 @@ func (d *daemon) StreamLogs(req *api.LogsRequest, stream api.Bumboat_StreamLogsS
 }
 
 func (d *daemon) GetSettings(context.Context, *api.Empty) (*api.Settings, error) {
-	cpus, total, used := hostResources()
 	return &api.Settings{
 		AcmeEmail:   d.st.setting("acme_email"),
 		Builds:      int32(d.builds()),
 		WebhookHost: d.st.setting("webhook_host"),
 		GithubApp:   d.st.setting("github_app"),
-		Host:        &api.Host{Cpus: int32(cpus), MemTotal: total, MemUsed: used},
+		Host:        d.host(),
 	}, nil
 }
 

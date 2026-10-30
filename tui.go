@@ -103,7 +103,8 @@ type model struct {
 	settings, settingsDraft *api.Settings
 	connectURL              string
 
-	wiz *wizard
+	wiz   *wizard
+	crumb bool
 }
 
 type (
@@ -384,6 +385,13 @@ func (m *model) key(k tea.KeyMsg) tea.Cmd {
 }
 
 func (m *model) contexts() []string {
+	if m.crumb {
+		return append(m.screenContexts(), "crumb")
+	}
+	return m.screenContexts()
+}
+
+func (m *model) screenContexts() []string {
 	switch m.screen {
 	case "service":
 		t := tabs[m.tab]
@@ -448,11 +456,8 @@ func (m *model) open(screen, name string, tab int) tea.Cmd {
 
 func (m *model) show(p place) tea.Cmd {
 	prev := m.name
-	m.screen, m.name, m.help, m.visual, m.connectURL = p.screen, p.name, false, -1, ""
-	if m.logCancel != nil {
-		m.logCancel()
-		m.logCancel = nil
-	}
+	m.screen, m.name, m.help, m.visual, m.connectURL, m.crumb = p.screen, p.name, false, -1, "", false
+	m.stopLogs()
 	switch p.screen {
 	case "services":
 		m.cursor = max(0, slices.IndexFunc(m.list.GetServices(), func(sv *api.Service) bool { return sv.Name == prev }))
@@ -516,18 +521,13 @@ func (m *model) setTab(t int) {
 }
 
 func (m *model) nextTab(n int) tea.Cmd {
-	if n > 0 {
-		m.setTab(min(n, len(tabs)) - 1)
-	} else {
-		m.setTab((m.tab + 1) % len(tabs))
-	}
+	m.setTab(((m.tab+n)%len(tabs) + len(tabs)) % len(tabs))
 	return m.enterTab()
 }
 
 func (m *model) enterTab() tea.Cmd {
-	if m.logCancel != nil && tabs[m.tab] != "logs" {
-		m.logCancel()
-		m.logCancel = nil
+	if tabs[m.tab] != "logs" {
+		m.stopLogs()
 	}
 	switch tabs[m.tab] {
 	case "deployments":
@@ -547,10 +547,17 @@ func (m *model) enterTab() tea.Cmd {
 	return nil
 }
 
-func (m *model) streamLogs() tea.Cmd {
+// stopLogs ends the log stream and drops anything it still has in flight.
+func (m *model) stopLogs() {
 	if m.logCancel != nil {
 		m.logCancel()
+		m.logCancel = nil
+		m.logGen++
 	}
+}
+
+func (m *model) streamLogs() tea.Cmd {
+	m.stopLogs()
 	m.logGen++
 	m.logs, m.cursor, m.offset, m.follow, m.visual = nil, 0, 0, true, -1
 	ctx, cancel := context.WithCancel(context.Background())
@@ -723,7 +730,7 @@ func (m *model) fields() []field {
 			}},
 			{"Webhook host", s.WebhookHost, func(v string) error { s.WebhookHost = v; return nil }},
 			{"GitHub app", app, nil},
-			{"Server", fmt.Sprintf("%d CPUs · %s / %s RAM used", s.Host.GetCpus(), size(s.Host.GetMemUsed()), size(s.Host.GetMemTotal())), nil},
+			{"Server", fmt.Sprintf("%d CPUs %.0f%% used · %s / %s RAM used", s.Host.GetCpus(), s.Host.GetCpu(), size(s.Host.GetMemUsed()), size(s.Host.GetMemTotal())), nil},
 		}
 	}
 	sv := m.draft
@@ -762,6 +769,10 @@ func (m *model) fields() []field {
 	if sv.Live != nil {
 		live = fmt.Sprintf("#%d %.7s %s", sv.Live.Id, sv.Live.Sha, sv.Live.Message)
 	}
+	usage := "not running"
+	if sv.State == "running" {
+		usage = fmt.Sprintf("%.0f%% CPU · %s / %s RAM", sv.Cpu, size(sv.Mem), size(m.list.GetHost().GetMemTotal()))
+	}
 	return append(f,
 		field{"Port", strconv.Itoa(int(sv.Port)), func(v string) error {
 			n, err := strconv.Atoi(v)
@@ -774,6 +785,7 @@ func (m *model) fields() []field {
 			return nil
 		}},
 		field{"State", sv.State, nil},
+		field{"Usage", usage, nil},
 		field{"Live", live, nil},
 	)
 }
@@ -1129,7 +1141,12 @@ func (m *model) findNext(dir int) {
 	m.fail("E486: Pattern not found: %s", m.search)
 }
 
-func (m *model) bodyHeight() int { return max(1, m.h-4) }
+func (m *model) bodyHeight() int {
+	if m.screen == "service" || m.screen == "wizard" {
+		return max(1, m.h-8-len(m.pinned()))
+	}
+	return max(1, m.h-6)
+}
 
 func (m *model) scroll() {
 	m.cursor = max(0, m.cursor)
@@ -1268,6 +1285,10 @@ func (m *model) exec(line string) tea.Cmd {
 	case "wq", "x":
 		return m.write(func() tea.Cmd { return m.open("services", "", 0) })
 	case "q":
+		if m.help {
+			m.help = false
+			return nil
+		}
 		if m.unsaved() && !force {
 			m.fail("E37: No write since last change (add ! to override)")
 			return nil
@@ -1623,9 +1644,12 @@ func (m *model) View() string {
 	}
 	var b strings.Builder
 	crumb := "services"
+	if m.crumb {
+		crumb = sel.Render(" " + crumb + " ")
+	}
 	switch m.screen {
 	case "service":
-		crumb += " › " + m.name
+		crumb += " › " + stateStyle(m.base.GetState()).Render("●") + " " + m.name
 	case "settings":
 		crumb += " › settings"
 	case "wizard":
@@ -1636,9 +1660,11 @@ func (m *model) View() string {
 	}
 	host := ""
 	if h := m.list.GetHost(); h != nil {
-		host = fmt.Sprintf("%d CPUs · %s/%s", h.Cpus, size(h.MemUsed), size(h.MemTotal))
+		host = fmt.Sprintf("%d CPUs %.0f%% · %s/%s", h.Cpus, h.Cpu, size(h.MemUsed), size(h.MemTotal))
 	}
 	b.WriteString(bold.Render("bumboat") + "  " + crumb + strings.Repeat(" ", max(1, m.w-len("bumboat  ")-lipgloss.Width(crumb)-len(host))) + dim.Render(host) + "\n")
+	rule := dim.Render(strings.Repeat("─", m.w)) + "\n"
+	b.WriteString(rule)
 
 	second := ""
 	switch {
@@ -1663,11 +1689,16 @@ func (m *model) View() string {
 			second += st.Render(" "+s+" ") + " "
 		}
 	}
-	b.WriteString(second + "\n")
+	if m.screen == "service" || m.screen == "wizard" {
+		b.WriteString(second + "\n" + rule)
+	}
 
 	body := m.body()
 	if m.help {
 		body = m.helpLines()
+	}
+	for _, line := range m.pinned() {
+		b.WriteString(lipgloss.NewStyle().MaxWidth(m.w).Render(line) + "\n")
 	}
 	h := m.bodyHeight()
 	for i := 0; i < h; i++ {
@@ -1707,7 +1738,51 @@ func (m *model) View() string {
 		b.WriteString(lipgloss.NewStyle().MaxWidth(m.w - 12).Render(status))
 		b.WriteString(strings.Repeat(" ", max(1, m.w-lipgloss.Width(status)-12)) + fmt.Sprintf("%-10s", pending))
 	}
+	var hints []string
+	for _, h := range m.hints() {
+		hints = append(hints, h[0]+" "+dim.Render(h[1]))
+	}
+	b.WriteString("\n" + rule + lipgloss.NewStyle().MaxWidth(m.w).Render(strings.Join(hints, "  ")))
 	return b.String()
+}
+
+func (m *model) hints() [][2]string {
+	switch {
+	case m.mode == command:
+		return [][2]string{{"enter", "run"}, {"tab", "complete"}, {"esc", "cancel"}}
+	case m.mode == insert:
+		return [][2]string{{"enter", "done"}, {"esc", "done"}}
+	case m.help:
+		return [][2]string{{"?", "close help"}}
+	case m.crumb:
+		return [][2]string{{"enter", "go to services"}, {"^j", "back down"}, {"?", "help"}}
+	}
+	var out [][2]string
+	switch {
+	case m.screen == "services":
+		out = [][2]string{{"enter", "open"}, {"o", "new"}, {"␣d", "deploy"}, {"␣r", "restart"}, {"dd", "delete"}, {":settings", "settings"}}
+	case m.screen == "wizard":
+		out = [][2]string{{"enter", "choose"}, {"h", "previous step"}}
+	case m.screen == "settings":
+		out = [][2]string{{"enter", "edit"}, {"␣g", "connect GitHub"}, {":w", "save"}}
+	case m.active("deployments"):
+		out = [][2]string{{"enter", "build log"}, {"␣R", "roll back"}, {"␣d", "deploy"}}
+	case m.active("logs"):
+		out = [][2]string{{"b", "build / runtime"}, {"G", "follow"}, {"V", "select"}, {"/", "search"}}
+	case m.active("env"):
+		out = [][2]string{{"enter", "edit"}, {"o", "add"}, {"dd", "delete"}, {"v", "reveal"}, {"E", "$EDITOR"}, {":w", "save"}}
+	case m.active("rows"):
+		out = [][2]string{{"enter", "edit"}, {"o", "add"}, {"dd", "delete"}, {":w", "save"}}
+	case m.active("fields"):
+		out = [][2]string{{"enter", "edit"}, {":w", "save"}, {"␣d", "deploy"}}
+	}
+	if m.screen == "service" {
+		out = append(out, [2]string{"^h ^l", "tab"})
+	}
+	if m.screen == "service" || m.screen == "settings" {
+		out = append(out, [2]string{"^k", "up"}, [2]string{"h", "back"})
+	}
+	return append(out, [2]string{"?", "help"})
 }
 
 func (m *model) row(i int, s string) string {
@@ -1747,28 +1822,18 @@ func (m *model) body() []string {
 			if i == m.cursor {
 				name = sel.Render(name)
 			}
-			out = append(out, fmt.Sprintf("%s %s %-10s %s  %-40s %-12s %s",
-				stateStyle(sv.State).Render("●"), name, sv.State, lipgloss.NewStyle().Width(28).Render(last), commit, usage, dim.Render(strings.Join(domains, " "))))
+			out = append(out, fmt.Sprintf("%s %s %s  %-40s %-12s %s",
+				stateStyle(sv.State).Render("●"), name, lipgloss.NewStyle().Width(28).Render(last), commit, usage, dim.Render(strings.Join(domains, " "))))
 		}
 	case m.screen == "wizard":
 		if m.wiz.loading {
 			return []string{dim.Render("loading…")}
 		}
-		titles := map[string]string{
-			"source":       "Where does the code come from?",
-			"repository":   "Pick a repository (only repos the GitHub App can see)",
-			"branch":       "Which branch deploys?",
-			"build method": "How should it build? (suggested first)",
+		if len(m.pinned()) == 0 {
+			return []string{bold.Render("Type the " + m.wizardSteps()[m.wiz.step] + " below, enter to continue, esc to go back")}
 		}
-		step := m.wizardSteps()[m.wiz.step]
-		if title, ok := titles[step]; ok {
-			out = append(out, bold.Render(title), "")
-			for i, o := range m.wiz.options {
-				out = append(out, m.row(i, "  "+o))
-			}
-			m.offset = 0
-		} else {
-			out = append(out, bold.Render("Type the "+step+" below, enter to continue, esc to go back"))
+		for i, o := range m.wiz.options {
+			out = append(out, m.row(i, "  "+o))
 		}
 	case m.screen == "settings" || m.active("fields"):
 		for i, f := range m.fields() {
@@ -1825,6 +1890,23 @@ func (m *model) body() []string {
 		}
 	}
 	return out
+}
+
+// pinned are the lines above the body that stay put while it scrolls.
+func (m *model) pinned() []string {
+	if m.screen != "wizard" || m.wiz.loading || m.help {
+		return nil
+	}
+	titles := map[string]string{
+		"source":       "Where does the code come from?",
+		"repository":   "Pick a repository (only repos the GitHub App can see)",
+		"branch":       "Which branch deploys?",
+		"build method": "How should it build? (suggested first)",
+	}
+	if title, ok := titles[m.wizardSteps()[m.wiz.step]]; ok {
+		return []string{bold.Render(title), ""}
+	}
+	return nil
 }
 
 func (m *model) helpLines() []string {

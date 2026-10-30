@@ -490,6 +490,7 @@ type Host struct {
 	Cpus          int32                  `protobuf:"varint,1,opt,name=cpus,proto3" json:"cpus,omitempty"`
 	MemTotal      int64                  `protobuf:"varint,2,opt,name=mem_total,json=memTotal,proto3" json:"mem_total,omitempty"`
 	MemUsed       int64                  `protobuf:"varint,3,opt,name=mem_used,json=memUsed,proto3" json:"mem_used,omitempty"`
+	Cpu           float64                `protobuf:"fixed64,4,opt,name=cpu,proto3" json:"cpu,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -541,6 +542,13 @@ func (x *Host) GetMemTotal() int64 {
 func (x *Host) GetMemUsed() int64 {
 	if x != nil {
 		return x.MemUsed
+	}
+	return 0
+}
+
+func (x *Host) GetCpu() float64 {
+	if x != nil {
+		return x.Cpu
 	}
 	return 0
 }
@@ -1324,11 +1332,12 @@ const file_bumboat_v1_bumboat_proto_rawDesc = "" +
 	"\x04live\x18\x16 \x01(\v2\x16.bumboat.v1.DeploymentR\x04live\x12*\n" +
 	"\x04last\x18\x17 \x01(\v2\x16.bumboat.v1.DeploymentR\x04last\x12\x10\n" +
 	"\x03cpu\x18\x18 \x01(\x01R\x03cpu\x12\x10\n" +
-	"\x03mem\x18\x19 \x01(\x03R\x03mem\"R\n" +
+	"\x03mem\x18\x19 \x01(\x03R\x03mem\"d\n" +
 	"\x04Host\x12\x12\n" +
 	"\x04cpus\x18\x01 \x01(\x05R\x04cpus\x12\x1b\n" +
 	"\tmem_total\x18\x02 \x01(\x03R\bmemTotal\x12\x19\n" +
-	"\bmem_used\x18\x03 \x01(\x03R\amemUsed\"d\n" +
+	"\bmem_used\x18\x03 \x01(\x03R\amemUsed\x12\x10\n" +
+	"\x03cpu\x18\x04 \x01(\x01R\x03cpu\"d\n" +
 	"\vServiceList\x12/\n" +
 	"\bservices\x18\x01 \x03(\v2\x13.bumboat.v1.ServiceR\bservices\x12$\n" +
 	"\x04host\x18\x02 \x01(\v2\x10.bumboat.v1.HostR\x04host\"\xdc\x01\n" +

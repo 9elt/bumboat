@@ -80,6 +80,7 @@ message Host {
   int32 cpus = 1;
   int64 mem_total = 2;
   int64 mem_used = 3;
+  double cpu = 4;
 }
 
 message ServiceList {

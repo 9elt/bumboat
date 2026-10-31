@@ -241,6 +241,7 @@ type Volume struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	Path          string                 `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	Docker        string                 `protobuf:"bytes,3,opt,name=docker,proto3" json:"docker,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -289,6 +290,65 @@ func (x *Volume) GetPath() string {
 	return ""
 }
 
+func (x *Volume) GetDocker() string {
+	if x != nil {
+		return x.Docker
+	}
+	return ""
+}
+
+type RenameRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	NewName       string                 `protobuf:"bytes,2,opt,name=new_name,json=newName,proto3" json:"new_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RenameRequest) Reset() {
+	*x = RenameRequest{}
+	mi := &file_bumboat_v1_bumboat_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RenameRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RenameRequest) ProtoMessage() {}
+
+func (x *RenameRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_bumboat_v1_bumboat_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RenameRequest.ProtoReflect.Descriptor instead.
+func (*RenameRequest) Descriptor() ([]byte, []int) {
+	return file_bumboat_v1_bumboat_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *RenameRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *RenameRequest) GetNewName() string {
+	if x != nil {
+		return x.NewName
+	}
+	return ""
+}
+
 type Service struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
@@ -317,7 +377,7 @@ type Service struct {
 
 func (x *Service) Reset() {
 	*x = Service{}
-	mi := &file_bumboat_v1_bumboat_proto_msgTypes[5]
+	mi := &file_bumboat_v1_bumboat_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -329,7 +389,7 @@ func (x *Service) String() string {
 func (*Service) ProtoMessage() {}
 
 func (x *Service) ProtoReflect() protoreflect.Message {
-	mi := &file_bumboat_v1_bumboat_proto_msgTypes[5]
+	mi := &file_bumboat_v1_bumboat_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -342,7 +402,7 @@ func (x *Service) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Service.ProtoReflect.Descriptor instead.
 func (*Service) Descriptor() ([]byte, []int) {
-	return file_bumboat_v1_bumboat_proto_rawDescGZIP(), []int{5}
+	return file_bumboat_v1_bumboat_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *Service) GetName() string {
@@ -497,7 +557,7 @@ type Host struct {
 
 func (x *Host) Reset() {
 	*x = Host{}
-	mi := &file_bumboat_v1_bumboat_proto_msgTypes[6]
+	mi := &file_bumboat_v1_bumboat_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -509,7 +569,7 @@ func (x *Host) String() string {
 func (*Host) ProtoMessage() {}
 
 func (x *Host) ProtoReflect() protoreflect.Message {
-	mi := &file_bumboat_v1_bumboat_proto_msgTypes[6]
+	mi := &file_bumboat_v1_bumboat_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -522,7 +582,7 @@ func (x *Host) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Host.ProtoReflect.Descriptor instead.
 func (*Host) Descriptor() ([]byte, []int) {
-	return file_bumboat_v1_bumboat_proto_rawDescGZIP(), []int{6}
+	return file_bumboat_v1_bumboat_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *Host) GetCpus() int32 {
@@ -563,7 +623,7 @@ type ServiceList struct {
 
 func (x *ServiceList) Reset() {
 	*x = ServiceList{}
-	mi := &file_bumboat_v1_bumboat_proto_msgTypes[7]
+	mi := &file_bumboat_v1_bumboat_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -575,7 +635,7 @@ func (x *ServiceList) String() string {
 func (*ServiceList) ProtoMessage() {}
 
 func (x *ServiceList) ProtoReflect() protoreflect.Message {
-	mi := &file_bumboat_v1_bumboat_proto_msgTypes[7]
+	mi := &file_bumboat_v1_bumboat_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -588,7 +648,7 @@ func (x *ServiceList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServiceList.ProtoReflect.Descriptor instead.
 func (*ServiceList) Descriptor() ([]byte, []int) {
-	return file_bumboat_v1_bumboat_proto_rawDescGZIP(), []int{7}
+	return file_bumboat_v1_bumboat_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ServiceList) GetServices() []*Service {
@@ -622,7 +682,7 @@ type Deployment struct {
 
 func (x *Deployment) Reset() {
 	*x = Deployment{}
-	mi := &file_bumboat_v1_bumboat_proto_msgTypes[8]
+	mi := &file_bumboat_v1_bumboat_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -634,7 +694,7 @@ func (x *Deployment) String() string {
 func (*Deployment) ProtoMessage() {}
 
 func (x *Deployment) ProtoReflect() protoreflect.Message {
-	mi := &file_bumboat_v1_bumboat_proto_msgTypes[8]
+	mi := &file_bumboat_v1_bumboat_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -647,7 +707,7 @@ func (x *Deployment) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Deployment.ProtoReflect.Descriptor instead.
 func (*Deployment) Descriptor() ([]byte, []int) {
-	return file_bumboat_v1_bumboat_proto_rawDescGZIP(), []int{8}
+	return file_bumboat_v1_bumboat_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *Deployment) GetId() int64 {
@@ -722,7 +782,7 @@ type DeploymentList struct {
 
 func (x *DeploymentList) Reset() {
 	*x = DeploymentList{}
-	mi := &file_bumboat_v1_bumboat_proto_msgTypes[9]
+	mi := &file_bumboat_v1_bumboat_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -734,7 +794,7 @@ func (x *DeploymentList) String() string {
 func (*DeploymentList) ProtoMessage() {}
 
 func (x *DeploymentList) ProtoReflect() protoreflect.Message {
-	mi := &file_bumboat_v1_bumboat_proto_msgTypes[9]
+	mi := &file_bumboat_v1_bumboat_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -747,7 +807,7 @@ func (x *DeploymentList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeploymentList.ProtoReflect.Descriptor instead.
 func (*DeploymentList) Descriptor() ([]byte, []int) {
-	return file_bumboat_v1_bumboat_proto_rawDescGZIP(), []int{9}
+	return file_bumboat_v1_bumboat_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *DeploymentList) GetDeployments() []*Deployment {
@@ -770,7 +830,7 @@ type LogsRequest struct {
 
 func (x *LogsRequest) Reset() {
 	*x = LogsRequest{}
-	mi := &file_bumboat_v1_bumboat_proto_msgTypes[10]
+	mi := &file_bumboat_v1_bumboat_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -782,7 +842,7 @@ func (x *LogsRequest) String() string {
 func (*LogsRequest) ProtoMessage() {}
 
 func (x *LogsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_bumboat_v1_bumboat_proto_msgTypes[10]
+	mi := &file_bumboat_v1_bumboat_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -795,7 +855,7 @@ func (x *LogsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogsRequest.ProtoReflect.Descriptor instead.
 func (*LogsRequest) Descriptor() ([]byte, []int) {
-	return file_bumboat_v1_bumboat_proto_rawDescGZIP(), []int{10}
+	return file_bumboat_v1_bumboat_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *LogsRequest) GetService() string {
@@ -842,7 +902,7 @@ type LogLine struct {
 
 func (x *LogLine) Reset() {
 	*x = LogLine{}
-	mi := &file_bumboat_v1_bumboat_proto_msgTypes[11]
+	mi := &file_bumboat_v1_bumboat_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -854,7 +914,7 @@ func (x *LogLine) String() string {
 func (*LogLine) ProtoMessage() {}
 
 func (x *LogLine) ProtoReflect() protoreflect.Message {
-	mi := &file_bumboat_v1_bumboat_proto_msgTypes[11]
+	mi := &file_bumboat_v1_bumboat_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -867,7 +927,7 @@ func (x *LogLine) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogLine.ProtoReflect.Descriptor instead.
 func (*LogLine) Descriptor() ([]byte, []int) {
-	return file_bumboat_v1_bumboat_proto_rawDescGZIP(), []int{11}
+	return file_bumboat_v1_bumboat_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *LogLine) GetText() string {
@@ -890,7 +950,7 @@ type Settings struct {
 
 func (x *Settings) Reset() {
 	*x = Settings{}
-	mi := &file_bumboat_v1_bumboat_proto_msgTypes[12]
+	mi := &file_bumboat_v1_bumboat_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -902,7 +962,7 @@ func (x *Settings) String() string {
 func (*Settings) ProtoMessage() {}
 
 func (x *Settings) ProtoReflect() protoreflect.Message {
-	mi := &file_bumboat_v1_bumboat_proto_msgTypes[12]
+	mi := &file_bumboat_v1_bumboat_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -915,7 +975,7 @@ func (x *Settings) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Settings.ProtoReflect.Descriptor instead.
 func (*Settings) Descriptor() ([]byte, []int) {
-	return file_bumboat_v1_bumboat_proto_rawDescGZIP(), []int{12}
+	return file_bumboat_v1_bumboat_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *Settings) GetAcmeEmail() string {
@@ -963,7 +1023,7 @@ type ConnectGitHubRequest struct {
 
 func (x *ConnectGitHubRequest) Reset() {
 	*x = ConnectGitHubRequest{}
-	mi := &file_bumboat_v1_bumboat_proto_msgTypes[13]
+	mi := &file_bumboat_v1_bumboat_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -975,7 +1035,7 @@ func (x *ConnectGitHubRequest) String() string {
 func (*ConnectGitHubRequest) ProtoMessage() {}
 
 func (x *ConnectGitHubRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_bumboat_v1_bumboat_proto_msgTypes[13]
+	mi := &file_bumboat_v1_bumboat_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -988,7 +1048,7 @@ func (x *ConnectGitHubRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectGitHubRequest.ProtoReflect.Descriptor instead.
 func (*ConnectGitHubRequest) Descriptor() ([]byte, []int) {
-	return file_bumboat_v1_bumboat_proto_rawDescGZIP(), []int{13}
+	return file_bumboat_v1_bumboat_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *ConnectGitHubRequest) GetWebhookHost() string {
@@ -1014,7 +1074,7 @@ type ConnectGitHubReply struct {
 
 func (x *ConnectGitHubReply) Reset() {
 	*x = ConnectGitHubReply{}
-	mi := &file_bumboat_v1_bumboat_proto_msgTypes[14]
+	mi := &file_bumboat_v1_bumboat_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1026,7 +1086,7 @@ func (x *ConnectGitHubReply) String() string {
 func (*ConnectGitHubReply) ProtoMessage() {}
 
 func (x *ConnectGitHubReply) ProtoReflect() protoreflect.Message {
-	mi := &file_bumboat_v1_bumboat_proto_msgTypes[14]
+	mi := &file_bumboat_v1_bumboat_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1039,7 +1099,7 @@ func (x *ConnectGitHubReply) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectGitHubReply.ProtoReflect.Descriptor instead.
 func (*ConnectGitHubReply) Descriptor() ([]byte, []int) {
-	return file_bumboat_v1_bumboat_proto_rawDescGZIP(), []int{14}
+	return file_bumboat_v1_bumboat_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *ConnectGitHubReply) GetUrl() string {
@@ -1059,7 +1119,7 @@ type Repo struct {
 
 func (x *Repo) Reset() {
 	*x = Repo{}
-	mi := &file_bumboat_v1_bumboat_proto_msgTypes[15]
+	mi := &file_bumboat_v1_bumboat_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1071,7 +1131,7 @@ func (x *Repo) String() string {
 func (*Repo) ProtoMessage() {}
 
 func (x *Repo) ProtoReflect() protoreflect.Message {
-	mi := &file_bumboat_v1_bumboat_proto_msgTypes[15]
+	mi := &file_bumboat_v1_bumboat_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1084,7 +1144,7 @@ func (x *Repo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Repo.ProtoReflect.Descriptor instead.
 func (*Repo) Descriptor() ([]byte, []int) {
-	return file_bumboat_v1_bumboat_proto_rawDescGZIP(), []int{15}
+	return file_bumboat_v1_bumboat_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *Repo) GetFullName() string {
@@ -1110,7 +1170,7 @@ type RepoList struct {
 
 func (x *RepoList) Reset() {
 	*x = RepoList{}
-	mi := &file_bumboat_v1_bumboat_proto_msgTypes[16]
+	mi := &file_bumboat_v1_bumboat_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1122,7 +1182,7 @@ func (x *RepoList) String() string {
 func (*RepoList) ProtoMessage() {}
 
 func (x *RepoList) ProtoReflect() protoreflect.Message {
-	mi := &file_bumboat_v1_bumboat_proto_msgTypes[16]
+	mi := &file_bumboat_v1_bumboat_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1135,7 +1195,7 @@ func (x *RepoList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RepoList.ProtoReflect.Descriptor instead.
 func (*RepoList) Descriptor() ([]byte, []int) {
-	return file_bumboat_v1_bumboat_proto_rawDescGZIP(), []int{16}
+	return file_bumboat_v1_bumboat_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *RepoList) GetRepos() []*Repo {
@@ -1154,7 +1214,7 @@ type BranchList struct {
 
 func (x *BranchList) Reset() {
 	*x = BranchList{}
-	mi := &file_bumboat_v1_bumboat_proto_msgTypes[17]
+	mi := &file_bumboat_v1_bumboat_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1166,7 +1226,7 @@ func (x *BranchList) String() string {
 func (*BranchList) ProtoMessage() {}
 
 func (x *BranchList) ProtoReflect() protoreflect.Message {
-	mi := &file_bumboat_v1_bumboat_proto_msgTypes[17]
+	mi := &file_bumboat_v1_bumboat_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1179,7 +1239,7 @@ func (x *BranchList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BranchList.ProtoReflect.Descriptor instead.
 func (*BranchList) Descriptor() ([]byte, []int) {
-	return file_bumboat_v1_bumboat_proto_rawDescGZIP(), []int{17}
+	return file_bumboat_v1_bumboat_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *BranchList) GetBranches() []string {
@@ -1199,7 +1259,7 @@ type SuggestBuildRequest struct {
 
 func (x *SuggestBuildRequest) Reset() {
 	*x = SuggestBuildRequest{}
-	mi := &file_bumboat_v1_bumboat_proto_msgTypes[18]
+	mi := &file_bumboat_v1_bumboat_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1211,7 +1271,7 @@ func (x *SuggestBuildRequest) String() string {
 func (*SuggestBuildRequest) ProtoMessage() {}
 
 func (x *SuggestBuildRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_bumboat_v1_bumboat_proto_msgTypes[18]
+	mi := &file_bumboat_v1_bumboat_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1224,7 +1284,7 @@ func (x *SuggestBuildRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SuggestBuildRequest.ProtoReflect.Descriptor instead.
 func (*SuggestBuildRequest) Descriptor() ([]byte, []int) {
-	return file_bumboat_v1_bumboat_proto_rawDescGZIP(), []int{18}
+	return file_bumboat_v1_bumboat_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *SuggestBuildRequest) GetRepo() string {
@@ -1250,7 +1310,7 @@ type SuggestBuildReply struct {
 
 func (x *SuggestBuildReply) Reset() {
 	*x = SuggestBuildReply{}
-	mi := &file_bumboat_v1_bumboat_proto_msgTypes[19]
+	mi := &file_bumboat_v1_bumboat_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1262,7 +1322,7 @@ func (x *SuggestBuildReply) String() string {
 func (*SuggestBuildReply) ProtoMessage() {}
 
 func (x *SuggestBuildReply) ProtoReflect() protoreflect.Message {
-	mi := &file_bumboat_v1_bumboat_proto_msgTypes[19]
+	mi := &file_bumboat_v1_bumboat_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1275,7 +1335,7 @@ func (x *SuggestBuildReply) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SuggestBuildReply.ProtoReflect.Descriptor instead.
 func (*SuggestBuildReply) Descriptor() ([]byte, []int) {
-	return file_bumboat_v1_bumboat_proto_rawDescGZIP(), []int{19}
+	return file_bumboat_v1_bumboat_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *SuggestBuildReply) GetBuild() string {
@@ -1303,10 +1363,14 @@ const file_bumboat_v1_bumboat_proto_rawDesc = "" +
 	"\x04host\x18\x01 \x01(\tR\x04host\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x12\n" +
 	"\x04cert\x18\x03 \x01(\tR\x04cert\x12\x1a\n" +
-	"\bresolves\x18\x04 \x03(\tR\bresolves\"0\n" +
+	"\bresolves\x18\x04 \x03(\tR\bresolves\"H\n" +
 	"\x06Volume\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
-	"\x04path\x18\x02 \x01(\tR\x04path\"\xc7\x04\n" +
+	"\x04path\x18\x02 \x01(\tR\x04path\x12\x16\n" +
+	"\x06docker\x18\x03 \x01(\tR\x06docker\">\n" +
+	"\rRenameRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x19\n" +
+	"\bnew_name\x18\x02 \x01(\tR\anewName\"\xc7\x04\n" +
 	"\aService\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x16\n" +
 	"\x06source\x18\x02 \x01(\tR\x06source\x12\x12\n" +
@@ -1389,7 +1453,7 @@ const file_bumboat_v1_bumboat_proto_rawDesc = "" +
 	"\x04repo\x18\x01 \x01(\tR\x04repo\x12\x16\n" +
 	"\x06branch\x18\x02 \x01(\tR\x06branch\")\n" +
 	"\x11SuggestBuildReply\x12\x14\n" +
-	"\x05build\x18\x01 \x01(\tR\x05build2\xac\b\n" +
+	"\x05build\x18\x01 \x01(\tR\x05build2\xed\b\n" +
 	"\aBumboat\x12:\n" +
 	"\fListServices\x12\x11.bumboat.v1.Empty\x1a\x17.bumboat.v1.ServiceList\x12=\n" +
 	"\rWatchServices\x12\x11.bumboat.v1.Empty\x1a\x17.bumboat.v1.ServiceList0\x01\x122\n" +
@@ -1397,7 +1461,8 @@ const file_bumboat_v1_bumboat_proto_rawDesc = "" +
 	"GetService\x12\x0f.bumboat.v1.Ref\x1a\x13.bumboat.v1.Service\x129\n" +
 	"\rCreateService\x12\x13.bumboat.v1.Service\x1a\x13.bumboat.v1.Service\x129\n" +
 	"\rUpdateService\x12\x13.bumboat.v1.Service\x1a\x13.bumboat.v1.Service\x123\n" +
-	"\rDeleteService\x12\x0f.bumboat.v1.Ref\x1a\x11.bumboat.v1.Empty\x121\n" +
+	"\rDeleteService\x12\x0f.bumboat.v1.Ref\x1a\x11.bumboat.v1.Empty\x12?\n" +
+	"\rRenameService\x12\x19.bumboat.v1.RenameRequest\x1a\x13.bumboat.v1.Service\x121\n" +
 	"\x06Deploy\x12\x0f.bumboat.v1.Ref\x1a\x16.bumboat.v1.Deployment\x123\n" +
 	"\bRollback\x12\x0f.bumboat.v1.Ref\x1a\x16.bumboat.v1.Deployment\x12-\n" +
 	"\aRestart\x12\x0f.bumboat.v1.Ref\x1a\x11.bumboat.v1.Empty\x12*\n" +
@@ -1424,78 +1489,81 @@ func file_bumboat_v1_bumboat_proto_rawDescGZIP() []byte {
 	return file_bumboat_v1_bumboat_proto_rawDescData
 }
 
-var file_bumboat_v1_bumboat_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_bumboat_v1_bumboat_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_bumboat_v1_bumboat_proto_goTypes = []any{
 	(*Empty)(nil),                // 0: bumboat.v1.Empty
 	(*Ref)(nil),                  // 1: bumboat.v1.Ref
 	(*EnvVar)(nil),               // 2: bumboat.v1.EnvVar
 	(*Domain)(nil),               // 3: bumboat.v1.Domain
 	(*Volume)(nil),               // 4: bumboat.v1.Volume
-	(*Service)(nil),              // 5: bumboat.v1.Service
-	(*Host)(nil),                 // 6: bumboat.v1.Host
-	(*ServiceList)(nil),          // 7: bumboat.v1.ServiceList
-	(*Deployment)(nil),           // 8: bumboat.v1.Deployment
-	(*DeploymentList)(nil),       // 9: bumboat.v1.DeploymentList
-	(*LogsRequest)(nil),          // 10: bumboat.v1.LogsRequest
-	(*LogLine)(nil),              // 11: bumboat.v1.LogLine
-	(*Settings)(nil),             // 12: bumboat.v1.Settings
-	(*ConnectGitHubRequest)(nil), // 13: bumboat.v1.ConnectGitHubRequest
-	(*ConnectGitHubReply)(nil),   // 14: bumboat.v1.ConnectGitHubReply
-	(*Repo)(nil),                 // 15: bumboat.v1.Repo
-	(*RepoList)(nil),             // 16: bumboat.v1.RepoList
-	(*BranchList)(nil),           // 17: bumboat.v1.BranchList
-	(*SuggestBuildRequest)(nil),  // 18: bumboat.v1.SuggestBuildRequest
-	(*SuggestBuildReply)(nil),    // 19: bumboat.v1.SuggestBuildReply
+	(*RenameRequest)(nil),        // 5: bumboat.v1.RenameRequest
+	(*Service)(nil),              // 6: bumboat.v1.Service
+	(*Host)(nil),                 // 7: bumboat.v1.Host
+	(*ServiceList)(nil),          // 8: bumboat.v1.ServiceList
+	(*Deployment)(nil),           // 9: bumboat.v1.Deployment
+	(*DeploymentList)(nil),       // 10: bumboat.v1.DeploymentList
+	(*LogsRequest)(nil),          // 11: bumboat.v1.LogsRequest
+	(*LogLine)(nil),              // 12: bumboat.v1.LogLine
+	(*Settings)(nil),             // 13: bumboat.v1.Settings
+	(*ConnectGitHubRequest)(nil), // 14: bumboat.v1.ConnectGitHubRequest
+	(*ConnectGitHubReply)(nil),   // 15: bumboat.v1.ConnectGitHubReply
+	(*Repo)(nil),                 // 16: bumboat.v1.Repo
+	(*RepoList)(nil),             // 17: bumboat.v1.RepoList
+	(*BranchList)(nil),           // 18: bumboat.v1.BranchList
+	(*SuggestBuildRequest)(nil),  // 19: bumboat.v1.SuggestBuildRequest
+	(*SuggestBuildReply)(nil),    // 20: bumboat.v1.SuggestBuildReply
 }
 var file_bumboat_v1_bumboat_proto_depIdxs = []int32{
 	2,  // 0: bumboat.v1.Service.env:type_name -> bumboat.v1.EnvVar
 	3,  // 1: bumboat.v1.Service.domains:type_name -> bumboat.v1.Domain
 	4,  // 2: bumboat.v1.Service.volumes:type_name -> bumboat.v1.Volume
-	8,  // 3: bumboat.v1.Service.live:type_name -> bumboat.v1.Deployment
-	8,  // 4: bumboat.v1.Service.last:type_name -> bumboat.v1.Deployment
-	5,  // 5: bumboat.v1.ServiceList.services:type_name -> bumboat.v1.Service
-	6,  // 6: bumboat.v1.ServiceList.host:type_name -> bumboat.v1.Host
-	8,  // 7: bumboat.v1.DeploymentList.deployments:type_name -> bumboat.v1.Deployment
-	6,  // 8: bumboat.v1.Settings.host:type_name -> bumboat.v1.Host
-	15, // 9: bumboat.v1.RepoList.repos:type_name -> bumboat.v1.Repo
+	9,  // 3: bumboat.v1.Service.live:type_name -> bumboat.v1.Deployment
+	9,  // 4: bumboat.v1.Service.last:type_name -> bumboat.v1.Deployment
+	6,  // 5: bumboat.v1.ServiceList.services:type_name -> bumboat.v1.Service
+	7,  // 6: bumboat.v1.ServiceList.host:type_name -> bumboat.v1.Host
+	9,  // 7: bumboat.v1.DeploymentList.deployments:type_name -> bumboat.v1.Deployment
+	7,  // 8: bumboat.v1.Settings.host:type_name -> bumboat.v1.Host
+	16, // 9: bumboat.v1.RepoList.repos:type_name -> bumboat.v1.Repo
 	0,  // 10: bumboat.v1.Bumboat.ListServices:input_type -> bumboat.v1.Empty
 	0,  // 11: bumboat.v1.Bumboat.WatchServices:input_type -> bumboat.v1.Empty
 	1,  // 12: bumboat.v1.Bumboat.GetService:input_type -> bumboat.v1.Ref
-	5,  // 13: bumboat.v1.Bumboat.CreateService:input_type -> bumboat.v1.Service
-	5,  // 14: bumboat.v1.Bumboat.UpdateService:input_type -> bumboat.v1.Service
+	6,  // 13: bumboat.v1.Bumboat.CreateService:input_type -> bumboat.v1.Service
+	6,  // 14: bumboat.v1.Bumboat.UpdateService:input_type -> bumboat.v1.Service
 	1,  // 15: bumboat.v1.Bumboat.DeleteService:input_type -> bumboat.v1.Ref
-	1,  // 16: bumboat.v1.Bumboat.Deploy:input_type -> bumboat.v1.Ref
-	1,  // 17: bumboat.v1.Bumboat.Rollback:input_type -> bumboat.v1.Ref
-	1,  // 18: bumboat.v1.Bumboat.Restart:input_type -> bumboat.v1.Ref
-	1,  // 19: bumboat.v1.Bumboat.Stop:input_type -> bumboat.v1.Ref
-	1,  // 20: bumboat.v1.Bumboat.ListDeployments:input_type -> bumboat.v1.Ref
-	10, // 21: bumboat.v1.Bumboat.StreamLogs:input_type -> bumboat.v1.LogsRequest
-	0,  // 22: bumboat.v1.Bumboat.GetSettings:input_type -> bumboat.v1.Empty
-	12, // 23: bumboat.v1.Bumboat.UpdateSettings:input_type -> bumboat.v1.Settings
-	13, // 24: bumboat.v1.Bumboat.ConnectGitHub:input_type -> bumboat.v1.ConnectGitHubRequest
-	0,  // 25: bumboat.v1.Bumboat.ListRepos:input_type -> bumboat.v1.Empty
-	1,  // 26: bumboat.v1.Bumboat.ListBranches:input_type -> bumboat.v1.Ref
-	18, // 27: bumboat.v1.Bumboat.SuggestBuild:input_type -> bumboat.v1.SuggestBuildRequest
-	7,  // 28: bumboat.v1.Bumboat.ListServices:output_type -> bumboat.v1.ServiceList
-	7,  // 29: bumboat.v1.Bumboat.WatchServices:output_type -> bumboat.v1.ServiceList
-	5,  // 30: bumboat.v1.Bumboat.GetService:output_type -> bumboat.v1.Service
-	5,  // 31: bumboat.v1.Bumboat.CreateService:output_type -> bumboat.v1.Service
-	5,  // 32: bumboat.v1.Bumboat.UpdateService:output_type -> bumboat.v1.Service
-	0,  // 33: bumboat.v1.Bumboat.DeleteService:output_type -> bumboat.v1.Empty
-	8,  // 34: bumboat.v1.Bumboat.Deploy:output_type -> bumboat.v1.Deployment
-	8,  // 35: bumboat.v1.Bumboat.Rollback:output_type -> bumboat.v1.Deployment
-	0,  // 36: bumboat.v1.Bumboat.Restart:output_type -> bumboat.v1.Empty
-	0,  // 37: bumboat.v1.Bumboat.Stop:output_type -> bumboat.v1.Empty
-	9,  // 38: bumboat.v1.Bumboat.ListDeployments:output_type -> bumboat.v1.DeploymentList
-	11, // 39: bumboat.v1.Bumboat.StreamLogs:output_type -> bumboat.v1.LogLine
-	12, // 40: bumboat.v1.Bumboat.GetSettings:output_type -> bumboat.v1.Settings
-	12, // 41: bumboat.v1.Bumboat.UpdateSettings:output_type -> bumboat.v1.Settings
-	14, // 42: bumboat.v1.Bumboat.ConnectGitHub:output_type -> bumboat.v1.ConnectGitHubReply
-	16, // 43: bumboat.v1.Bumboat.ListRepos:output_type -> bumboat.v1.RepoList
-	17, // 44: bumboat.v1.Bumboat.ListBranches:output_type -> bumboat.v1.BranchList
-	19, // 45: bumboat.v1.Bumboat.SuggestBuild:output_type -> bumboat.v1.SuggestBuildReply
-	28, // [28:46] is the sub-list for method output_type
-	10, // [10:28] is the sub-list for method input_type
+	5,  // 16: bumboat.v1.Bumboat.RenameService:input_type -> bumboat.v1.RenameRequest
+	1,  // 17: bumboat.v1.Bumboat.Deploy:input_type -> bumboat.v1.Ref
+	1,  // 18: bumboat.v1.Bumboat.Rollback:input_type -> bumboat.v1.Ref
+	1,  // 19: bumboat.v1.Bumboat.Restart:input_type -> bumboat.v1.Ref
+	1,  // 20: bumboat.v1.Bumboat.Stop:input_type -> bumboat.v1.Ref
+	1,  // 21: bumboat.v1.Bumboat.ListDeployments:input_type -> bumboat.v1.Ref
+	11, // 22: bumboat.v1.Bumboat.StreamLogs:input_type -> bumboat.v1.LogsRequest
+	0,  // 23: bumboat.v1.Bumboat.GetSettings:input_type -> bumboat.v1.Empty
+	13, // 24: bumboat.v1.Bumboat.UpdateSettings:input_type -> bumboat.v1.Settings
+	14, // 25: bumboat.v1.Bumboat.ConnectGitHub:input_type -> bumboat.v1.ConnectGitHubRequest
+	0,  // 26: bumboat.v1.Bumboat.ListRepos:input_type -> bumboat.v1.Empty
+	1,  // 27: bumboat.v1.Bumboat.ListBranches:input_type -> bumboat.v1.Ref
+	19, // 28: bumboat.v1.Bumboat.SuggestBuild:input_type -> bumboat.v1.SuggestBuildRequest
+	8,  // 29: bumboat.v1.Bumboat.ListServices:output_type -> bumboat.v1.ServiceList
+	8,  // 30: bumboat.v1.Bumboat.WatchServices:output_type -> bumboat.v1.ServiceList
+	6,  // 31: bumboat.v1.Bumboat.GetService:output_type -> bumboat.v1.Service
+	6,  // 32: bumboat.v1.Bumboat.CreateService:output_type -> bumboat.v1.Service
+	6,  // 33: bumboat.v1.Bumboat.UpdateService:output_type -> bumboat.v1.Service
+	0,  // 34: bumboat.v1.Bumboat.DeleteService:output_type -> bumboat.v1.Empty
+	6,  // 35: bumboat.v1.Bumboat.RenameService:output_type -> bumboat.v1.Service
+	9,  // 36: bumboat.v1.Bumboat.Deploy:output_type -> bumboat.v1.Deployment
+	9,  // 37: bumboat.v1.Bumboat.Rollback:output_type -> bumboat.v1.Deployment
+	0,  // 38: bumboat.v1.Bumboat.Restart:output_type -> bumboat.v1.Empty
+	0,  // 39: bumboat.v1.Bumboat.Stop:output_type -> bumboat.v1.Empty
+	10, // 40: bumboat.v1.Bumboat.ListDeployments:output_type -> bumboat.v1.DeploymentList
+	12, // 41: bumboat.v1.Bumboat.StreamLogs:output_type -> bumboat.v1.LogLine
+	13, // 42: bumboat.v1.Bumboat.GetSettings:output_type -> bumboat.v1.Settings
+	13, // 43: bumboat.v1.Bumboat.UpdateSettings:output_type -> bumboat.v1.Settings
+	15, // 44: bumboat.v1.Bumboat.ConnectGitHub:output_type -> bumboat.v1.ConnectGitHubReply
+	17, // 45: bumboat.v1.Bumboat.ListRepos:output_type -> bumboat.v1.RepoList
+	18, // 46: bumboat.v1.Bumboat.ListBranches:output_type -> bumboat.v1.BranchList
+	20, // 47: bumboat.v1.Bumboat.SuggestBuild:output_type -> bumboat.v1.SuggestBuildReply
+	29, // [29:48] is the sub-list for method output_type
+	10, // [10:29] is the sub-list for method input_type
 	10, // [10:10] is the sub-list for extension type_name
 	10, // [10:10] is the sub-list for extension extendee
 	0,  // [0:10] is the sub-list for field type_name
@@ -1512,7 +1580,7 @@ func file_bumboat_v1_bumboat_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_bumboat_v1_bumboat_proto_rawDesc), len(file_bumboat_v1_bumboat_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   20,
+			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

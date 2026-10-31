@@ -25,7 +25,7 @@ func init() {
 		{"G", "logs", "go to the end and follow", func(m *model, _ int) tea.Cmd { m.follow = true; m.cursor = len(m.logs) - 1; return nil }},
 		{"b", "logs", "toggle build / runtime log", func(m *model, _ int) tea.Cmd { m.logBuild = !m.logBuild; m.logDep = 0; return m.streamLogs() }},
 		{"V", "logs", "select lines (y yanks)", func(m *model, _ int) tea.Cmd { m.visual = m.cursor; return nil }},
-		{"v", "env", "reveal / mask values", func(m *model, _ int) tea.Cmd { m.reveal = !m.reveal; return nil }},
+		{"v", "env overview", "reveal / mask values", func(m *model, _ int) tea.Cmd { m.reveal = !m.reveal; return nil }},
 		{"b", "env", "toggle build-time for this variable", (*model).toggleBuildEnv},
 		{"<enter> i a", "fields", "edit the field", func(m *model, _ int) tea.Cmd { return m.editField(false) }},
 		{"cc", "fields", "replace the field", func(m *model, _ int) tea.Cmd { return m.editField(true) }},

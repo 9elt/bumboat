@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -111,6 +112,14 @@ type (
 	feedMsg    struct{ inner tea.Msg }
 	listMsg    struct{ l *api.ServiceList }
 	feedErrMsg struct{ err error }
+	clonedMsg  struct {
+		from string
+		sv   *api.Service
+	}
+	renamedMsg struct {
+		from string
+		sv   *api.Service
+	}
 	serviceMsg struct {
 		sv      *api.Service
 		written bool
@@ -225,6 +234,19 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case feedErrMsg:
 		m.fail("%s", errorText(msg.err))
+	case clonedMsg:
+		m.flash("cloned %s to %s: no domains, empty volumes, <space>d deploys", msg.from, msg.sv.Name)
+		cmd = m.open("service", msg.sv.Name, 0)
+	case renamedMsg:
+		for i := range m.jumps {
+			if m.jumps[i].name == msg.from {
+				m.jumps[i].name = msg.sv.Name
+			}
+		}
+		if m.screen == "service" && m.name == msg.from {
+			m.name, m.base, m.draft, m.undo, m.redo = msg.sv.Name, msg.sv, proto.Clone(msg.sv).(*api.Service), nil, nil
+		}
+		m.flash("%s renamed to %s", msg.from, msg.sv.Name)
 	case serviceMsg:
 		if m.screen == "service" && msg.sv.Name == m.name {
 			m.base = msg.sv
@@ -644,6 +666,49 @@ func (m *model) deleteService(name string, force bool) tea.Cmd {
 	return nil
 }
 
+func (m *model) renameService(name, to string) tea.Cmd {
+	if name == "" || to == "" || to == name {
+		return nil
+	}
+	if m.unsaved() {
+		m.fail("E37: No write since last change (:w to save, :e! to discard)")
+		return nil
+	}
+	if !reName.MatchString(to) {
+		m.fail("%q: use lowercase letters, digits and dashes", to)
+		return nil
+	}
+	m.confirm = "rename " + name + " to " + to + "? it redeploys and its hostname changes (y/n)"
+	m.onYes = func() tea.Cmd {
+		return call(func(ctx context.Context) (*api.Service, error) {
+			return m.c.RenameService(ctx, &api.RenameRequest{Name: name, NewName: to})
+		}, func(sv *api.Service) tea.Msg { return renamedMsg{name, sv} })
+	}
+	return nil
+}
+
+func (m *model) cloneService(name, to string) tea.Cmd {
+	i := slices.IndexFunc(m.list.GetServices(), func(sv *api.Service) bool { return sv.Name == name })
+	switch {
+	case to == "":
+		return nil
+	case i < 0:
+		m.fail("no service %q", name)
+		return nil
+	case !reName.MatchString(to):
+		m.fail("%q: use lowercase letters, digits and dashes", to)
+		return nil
+	}
+	sv := config(m.list.Services[i])
+	sv.Name, sv.Domains = to, nil
+	for _, v := range sv.Volumes {
+		v.Docker = ""
+	}
+	return call(func(ctx context.Context) (*api.Service, error) { return m.c.CreateService(ctx, sv) }, func(sv *api.Service) tea.Msg {
+		return clonedMsg{name, sv}
+	})
+}
+
 func (m *model) rollbackCursor(int) tea.Cmd {
 	if m.cursor >= len(m.deps) {
 		return nil
@@ -737,7 +802,7 @@ func (m *model) fields() []field {
 	if sv == nil {
 		return nil
 	}
-	f := []field{{"Source", sv.Source, func(v string) error {
+	f := []field{{"Name", sv.Name, func(string) error { return nil }}, {"Source", sv.Source, func(v string) error {
 		if v != "github" && v != "image" {
 			return errors.New("source is github or image")
 		}
@@ -769,6 +834,13 @@ func (m *model) fields() []field {
 	if sv.Live != nil {
 		live = fmt.Sprintf("#%d %.7s %s", sv.Live.Id, sv.Live.Sha, sv.Live.Message)
 	}
+	public := "none · add a domain in the domains tab"
+	if len(sv.Domains) > 0 {
+		public = "https://" + sv.Domains[0].Host + sv.Domains[0].Path
+		if len(sv.Domains) > 1 {
+			public += fmt.Sprintf(" (+%d more)", len(sv.Domains)-1)
+		}
+	}
 	usage := "not running"
 	if sv.State == "running" {
 		usage = fmt.Sprintf("%.0f%% CPU · %s / %s RAM", sv.Cpu, size(sv.Mem), size(m.list.GetHost().GetMemTotal()))
@@ -786,8 +858,28 @@ func (m *model) fields() []field {
 		}},
 		field{"State", sv.State, nil},
 		field{"Usage", usage, nil},
+		field{"Public URL", public, nil},
+		field{"Internal URL", m.internalURL(m.reveal), nil},
 		field{"Live", live, nil},
 	)
+}
+
+// internalURL is how other services reach this one over the bumboat network.
+func (m *model) internalURL(reveal bool) string {
+	sv := m.draft
+	addr := fmt.Sprintf("%s:%d", sv.Name, sv.Port)
+	if !strings.Contains(sv.Image, "postgres") {
+		return addr
+	}
+	env := map[string]string{"POSTGRES_USER": "postgres"}
+	for _, e := range sv.Env {
+		env[e.Key] = e.Value
+	}
+	db, pass := cmp.Or(env["POSTGRES_DB"], env["POSTGRES_USER"]), env["POSTGRES_PASSWORD"]
+	if !reveal && pass != "" {
+		pass = "****"
+	}
+	return fmt.Sprintf("postgres://%s:%s@%s/%s", env["POSTGRES_USER"], pass, addr, db)
 }
 
 func (m *model) editField(replace bool) tea.Cmd {
@@ -799,6 +891,9 @@ func (m *model) editField(replace bool) tea.Cmd {
 	if f.set == nil {
 		m.fail("%s is read-only", f.label)
 		return nil
+	}
+	if f.label == "Name" {
+		return m.startInsert("Name", f.value, func(v string) tea.Cmd { return m.renameService(m.name, strings.TrimSpace(v)) })
 	}
 	value := f.value
 	if replace {
@@ -1048,6 +1143,13 @@ func (m *model) yank(int) tea.Cmd {
 	case m.active("fields"):
 		if fs := m.fields(); m.cursor < len(fs) {
 			v = fs[m.cursor].value
+			switch fs[m.cursor].label {
+			case "Internal URL":
+				v = m.internalURL(true)
+			case "Public URL":
+				v, _, _ = strings.Cut(v, " ")
+				v = strings.TrimPrefix(v, "none")
+			}
 		}
 	case m.active("rows"):
 		if m.cursor < m.rowCount() {
@@ -1159,7 +1261,7 @@ func (m *model) scroll() {
 	}
 }
 
-var commands = []string{"deploy", "rollback", "restart", "stop", "new", "rm", "e", "logs", "set", "unset", "domain", "config", "settings", "w", "wd", "wq", "q", "qa", "help"}
+var commands = []string{"deploy", "rollback", "restart", "stop", "new", "rm", "rename", "clone", "e", "logs", "set", "unset", "domain", "config", "settings", "w", "wd", "wq", "q", "qa", "help"}
 
 func (m *model) startCommand(prompt string) tea.Cmd {
 	m.mode = command
@@ -1217,7 +1319,7 @@ func (m *model) complete() {
 	if len(words) > 1 {
 		options = nil
 		switch strings.TrimSuffix(words[0], "!") {
-		case "deploy", "restart", "stop", "rm", "e", "logs":
+		case "deploy", "restart", "stop", "rm", "rename", "clone", "e", "logs":
 			for _, sv := range m.list.GetServices() {
 				options = append(options, sv.Name)
 			}
@@ -1320,6 +1422,15 @@ func (m *model) exec(line string) tea.Cmd {
 		return m.startWizard()
 	case "rm":
 		return m.deleteService(target, force)
+	case "rename", "clone":
+		from, to, ok := strings.Cut(arg, " ")
+		if !ok {
+			from, to = m.current(), arg
+		}
+		if name == "clone" {
+			return m.cloneService(from, strings.TrimSpace(to))
+		}
+		return m.renameService(from, strings.TrimSpace(to))
 	case "e", "logs":
 		if force {
 			m.base, m.draft, m.settings = nil, nil, nil
@@ -1740,7 +1851,10 @@ func (m *model) View() string {
 	}
 	var hints []string
 	for _, h := range m.hints() {
-		hints = append(hints, h[0]+" "+dim.Render(h[1]))
+		if h[1] != "" {
+			h[0] += " " + dim.Render(h[1])
+		}
+		hints = append(hints, h[0])
 	}
 	b.WriteString("\n" + rule + lipgloss.NewStyle().MaxWidth(m.w).Render(strings.Join(hints, "  ")))
 	return b.String()
@@ -1760,7 +1874,7 @@ func (m *model) hints() [][2]string {
 	var out [][2]string
 	switch {
 	case m.screen == "services":
-		out = [][2]string{{"enter", "open"}, {"o", "new"}, {"␣d", "deploy"}, {"␣r", "restart"}, {"dd", "delete"}, {":settings", "settings"}}
+		out = [][2]string{{"enter", "open"}, {"o", "new"}, {"␣d", "deploy"}, {"␣r", "restart"}, {"dd", "delete"}, {":clone", ""}, {":settings", ""}}
 	case m.screen == "wizard":
 		out = [][2]string{{"enter", "choose"}, {"h", "previous step"}}
 	case m.screen == "settings":
@@ -1775,6 +1889,9 @@ func (m *model) hints() [][2]string {
 		out = [][2]string{{"enter", "edit"}, {"o", "add"}, {"dd", "delete"}, {":w", "save"}}
 	case m.active("fields"):
 		out = [][2]string{{"enter", "edit"}, {":w", "save"}, {"␣d", "deploy"}}
+		if m.screen == "service" {
+			out = append(out, [2]string{":clone", ""})
+		}
 	}
 	if m.screen == "service" {
 		out = append(out, [2]string{"^h ^l", "tab"})
@@ -1917,7 +2034,7 @@ func (m *model) helpLines() []string {
 		}
 	}
 	return append(out, "", bold.Render("commands"),
-		"  :deploy [svc]  :rollback <id>  :restart [svc]  :stop [svc]  :new  :rm[!] <svc>",
+		"  :deploy [svc]  :rollback <id>  :restart [svc]  :stop [svc]  :new  :rm[!] <svc>  :rename [svc] <new>  :clone [svc] <new>",
 		"  :e[!] <svc>  :logs [svc]  :settings  :set KEY=value  :unset KEY  :domain add|rm <host[/path]>",
 		"  :config builds=N|email=…|host=…  :w  :wd  :wq  :q[!]  :qa[!]",
 	)

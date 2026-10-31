@@ -500,3 +500,55 @@ func TestLeavingLogsDropsStaleLines(t *testing.T) {
 		t.Fatalf("stale log stream leaked into env: cursor %d offset %d msg %q", m.cursor, m.offset, m.msg)
 	}
 }
+
+func TestRenameServiceKeepsVolumes(t *testing.T) {
+	d := testDaemon(t)
+	sv := &api.Service{
+		Name: "postgres", Source: "image", Image: "postgres:17", Port: 5432,
+		Env:     []*api.EnvVar{{Key: "POSTGRES_PASSWORD", Value: "secret"}},
+		Domains: []*api.Domain{{Host: "db.example.com"}},
+		Volumes: []*api.Volume{{Name: "data", Path: "/var/lib/postgresql/data"}},
+	}
+	if err := d.st.saveService(sv, true, false); err != nil {
+		t.Fatal(err)
+	}
+	dep := &api.Deployment{Service: "postgres", Image: "bumboat/postgres:1", Status: "live", Started: 1}
+	if err := d.st.addDeployment(dep); err != nil {
+		t.Fatal(err)
+	}
+	d.st.setLive("postgres", dep.Id)
+
+	if err := d.st.renameService("postgres", "Bad Name"); err == nil {
+		t.Fatal("renamed to an invalid name")
+	}
+	if err := d.st.renameService("postgres", "db"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := d.st.service("postgres"); err == nil {
+		t.Fatal("old name still exists")
+	}
+	got, err := d.st.service("db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Env) != 1 || got.Env[0].Value != "secret" || len(got.Domains) != 1 || got.Live == nil || got.Live.Image != "bumboat/db:1" {
+		t.Fatalf("renamed service lost its data: %+v", got)
+	}
+	if v := got.Volumes[0]; v.Docker != "bumboat-postgres-data" {
+		t.Fatalf("volume moved to %q", v.Docker)
+	}
+	if err := d.st.saveService(got, false, false); err != nil || got.Volumes[0].Docker != "bumboat-postgres-data" {
+		t.Fatalf("saving changed the volume to %q: %v", got.Volumes[0].Docker, err)
+	}
+
+	fresh := &api.Service{Name: "postgres", Source: "image", Image: "postgres:17", Volumes: []*api.Volume{{Name: "data", Path: "/data"}}}
+	if err := d.st.saveService(fresh, true, false); err != nil {
+		t.Fatal(err)
+	}
+	if fresh.Volumes[0].Docker != "bumboat-postgres-data-2" {
+		t.Fatalf("new service reused the renamed one's volume: %q", fresh.Volumes[0].Docker)
+	}
+	if err := d.st.renameService("db", "postgres"); err == nil {
+		t.Fatal("renamed onto an existing service")
+	}
+}

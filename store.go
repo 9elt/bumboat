@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/9elt/bumboat/api"
@@ -56,6 +57,7 @@ CREATE TABLE IF NOT EXISTS volumes (
 	service TEXT NOT NULL REFERENCES services(name) ON DELETE CASCADE,
 	name TEXT NOT NULL,
 	path TEXT NOT NULL,
+	docker TEXT NOT NULL DEFAULT '',
 	PRIMARY KEY (service, name)
 );
 CREATE TABLE IF NOT EXISTS deployments (
@@ -105,6 +107,13 @@ func openStore(dir, keyPath string) (*store, error) {
 	}
 	db.SetMaxOpenConns(1)
 	if _, err := db.Exec(schema); err != nil {
+		return nil, fmt.Errorf("schema: %w", err)
+	}
+	// volumes keep their docker name when the service is renamed
+	if _, err := db.Exec(`ALTER TABLE volumes ADD COLUMN docker TEXT NOT NULL DEFAULT ''`); err != nil && !strings.Contains(err.Error(), "duplicate column") {
+		return nil, fmt.Errorf("schema: %w", err)
+	}
+	if _, err := db.Exec(`UPDATE volumes SET docker = 'bumboat-' || service || '-' || name WHERE docker = ''`); err != nil {
 		return nil, fmt.Errorf("schema: %w", err)
 	}
 	return &store{db, aead}, nil
@@ -176,14 +185,14 @@ func (s *store) services(name string) ([]*api.Service, map[string]int64, error) 
 	}
 	rows.Close()
 
-	rows, err = s.db.Query(`SELECT service, name, path FROM volumes WHERE ? = '' OR service = ? ORDER BY name`, name, name)
+	rows, err = s.db.Query(`SELECT service, name, path, docker FROM volumes WHERE ? = '' OR service = ? ORDER BY name`, name, name)
 	if err != nil {
 		return nil, nil, err
 	}
 	for rows.Next() {
 		var svc string
 		var v api.Volume
-		rows.Scan(&svc, &v.Name, &v.Path)
+		rows.Scan(&svc, &v.Name, &v.Path, &v.Docker)
 		byName[svc].Volumes = append(byName[svc].Volumes, &v)
 	}
 	rows.Close()
@@ -292,6 +301,17 @@ func (s *store) saveService(sv *api.Service, create, dirty bool) error {
 		return err
 	}
 
+	docker := map[string]string{}
+	rows, err := tx.Query(`SELECT name, docker FROM volumes WHERE service = ?`, sv.Name)
+	if err != nil {
+		return err
+	}
+	for rows.Next() {
+		var name, d string
+		rows.Scan(&name, &d)
+		docker[name] = d
+	}
+	rows.Close()
 	for _, q := range []string{`DELETE FROM env WHERE service = ?`, `DELETE FROM domains WHERE service = ?`, `DELETE FROM volumes WHERE service = ?`} {
 		if _, err := tx.Exec(q, sv.Name); err != nil {
 			return err
@@ -308,9 +328,57 @@ func (s *store) saveService(sv *api.Service, create, dirty bool) error {
 		}
 	}
 	for _, v := range sv.Volumes {
-		if _, err := tx.Exec(`INSERT INTO volumes (service, name, path) VALUES (?, ?, ?)`, sv.Name, v.Name, v.Path); err != nil {
+		v.Docker = docker[v.Name]
+		for n := 1; v.Docker == ""; n++ {
+			v.Docker = "bumboat-" + sv.Name + "-" + v.Name
+			if n > 1 {
+				v.Docker += "-" + strconv.Itoa(n)
+			}
+			var used bool
+			tx.QueryRow(`SELECT 1 FROM volumes WHERE docker = ?`, v.Docker).Scan(&used)
+			if used {
+				v.Docker = ""
+			}
+		}
+		if _, err := tx.Exec(`INSERT INTO volumes (service, name, path, docker) VALUES (?, ?, ?, ?)`, sv.Name, v.Name, v.Path, v.Docker); err != nil {
 			return fmt.Errorf("volume %s: %w", v.Name, err)
 		}
+	}
+	return tx.Commit()
+}
+
+// renameService moves a service and everything it owns to a new name.
+// Its volumes keep their docker names, its built images are retagged by the caller.
+func (s *store) renameService(name, to string) error {
+	if !reName.MatchString(to) {
+		return fmt.Errorf("name %q must be lowercase letters, digits and dashes", to)
+	}
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`PRAGMA defer_foreign_keys = ON`); err != nil {
+		return err
+	}
+	res, err := tx.Exec(`UPDATE services SET name = ? WHERE name = ?`, to, name)
+	if err != nil && strings.Contains(err.Error(), "UNIQUE") {
+		return fmt.Errorf("service %q already exists", to)
+	} else if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("no service %q", name)
+	}
+	for _, table := range []string{"env", "domains", "volumes", "deployments"} {
+		if _, err := tx.Exec(`UPDATE `+table+` SET service = ? WHERE service = ?`, to, name); err != nil {
+			return err
+		}
+	}
+	prefix := "bumboat/" + name + ":"
+	if _, err := tx.Exec(`UPDATE deployments SET image = ? || substr(image, ?) WHERE service = ? AND substr(image, 1, ?) = ?`,
+		"bumboat/"+to+":", len(prefix)+1, to, len(prefix), prefix); err != nil {
+		return err
 	}
 	return tx.Commit()
 }

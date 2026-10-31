@@ -11,6 +11,7 @@ service Bumboat {
   rpc CreateService(Service) returns (Service);
   rpc UpdateService(Service) returns (Service);
   rpc DeleteService(Ref) returns (Empty);
+  rpc RenameService(RenameRequest) returns (Service);
 
   rpc Deploy(Ref) returns (Deployment);
   rpc Rollback(Ref) returns (Deployment);
@@ -50,6 +51,12 @@ message Domain {
 message Volume {
   string name = 1;
   string path = 2;
+  string docker = 3;
+}
+
+message RenameRequest {
+  string name = 1;
+  string new_name = 2;
 }
 
 message Service {

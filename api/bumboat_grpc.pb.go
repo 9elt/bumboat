@@ -25,6 +25,7 @@ const (
 	Bumboat_CreateService_FullMethodName   = "/bumboat.v1.Bumboat/CreateService"
 	Bumboat_UpdateService_FullMethodName   = "/bumboat.v1.Bumboat/UpdateService"
 	Bumboat_DeleteService_FullMethodName   = "/bumboat.v1.Bumboat/DeleteService"
+	Bumboat_RenameService_FullMethodName   = "/bumboat.v1.Bumboat/RenameService"
 	Bumboat_Deploy_FullMethodName          = "/bumboat.v1.Bumboat/Deploy"
 	Bumboat_Rollback_FullMethodName        = "/bumboat.v1.Bumboat/Rollback"
 	Bumboat_Restart_FullMethodName         = "/bumboat.v1.Bumboat/Restart"
@@ -49,6 +50,7 @@ type BumboatClient interface {
 	CreateService(ctx context.Context, in *Service, opts ...grpc.CallOption) (*Service, error)
 	UpdateService(ctx context.Context, in *Service, opts ...grpc.CallOption) (*Service, error)
 	DeleteService(ctx context.Context, in *Ref, opts ...grpc.CallOption) (*Empty, error)
+	RenameService(ctx context.Context, in *RenameRequest, opts ...grpc.CallOption) (*Service, error)
 	Deploy(ctx context.Context, in *Ref, opts ...grpc.CallOption) (*Deployment, error)
 	Rollback(ctx context.Context, in *Ref, opts ...grpc.CallOption) (*Deployment, error)
 	Restart(ctx context.Context, in *Ref, opts ...grpc.CallOption) (*Empty, error)
@@ -134,6 +136,16 @@ func (c *bumboatClient) DeleteService(ctx context.Context, in *Ref, opts ...grpc
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Empty)
 	err := c.cc.Invoke(ctx, Bumboat_DeleteService_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *bumboatClient) RenameService(ctx context.Context, in *RenameRequest, opts ...grpc.CallOption) (*Service, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Service)
+	err := c.cc.Invoke(ctx, Bumboat_RenameService_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -279,6 +291,7 @@ type BumboatServer interface {
 	CreateService(context.Context, *Service) (*Service, error)
 	UpdateService(context.Context, *Service) (*Service, error)
 	DeleteService(context.Context, *Ref) (*Empty, error)
+	RenameService(context.Context, *RenameRequest) (*Service, error)
 	Deploy(context.Context, *Ref) (*Deployment, error)
 	Rollback(context.Context, *Ref) (*Deployment, error)
 	Restart(context.Context, *Ref) (*Empty, error)
@@ -318,6 +331,9 @@ func (UnimplementedBumboatServer) UpdateService(context.Context, *Service) (*Ser
 }
 func (UnimplementedBumboatServer) DeleteService(context.Context, *Ref) (*Empty, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteService not implemented")
+}
+func (UnimplementedBumboatServer) RenameService(context.Context, *RenameRequest) (*Service, error) {
+	return nil, status.Error(codes.Unimplemented, "method RenameService not implemented")
 }
 func (UnimplementedBumboatServer) Deploy(context.Context, *Ref) (*Deployment, error) {
 	return nil, status.Error(codes.Unimplemented, "method Deploy not implemented")
@@ -473,6 +489,24 @@ func _Bumboat_DeleteService_Handler(srv interface{}, ctx context.Context, dec fu
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(BumboatServer).DeleteService(ctx, req.(*Ref))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Bumboat_RenameService_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RenameRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BumboatServer).RenameService(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Bumboat_RenameService_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BumboatServer).RenameService(ctx, req.(*RenameRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -712,6 +746,10 @@ var Bumboat_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteService",
 			Handler:    _Bumboat_DeleteService_Handler,
+		},
+		{
+			MethodName: "RenameService",
+			Handler:    _Bumboat_RenameService_Handler,
 		},
 		{
 			MethodName: "Deploy",

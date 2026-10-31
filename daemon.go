@@ -131,13 +131,14 @@ func (d *daemon) reconcile(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	ports := map[string]int32{}
+	byDeployment := map[string]string{}
 	for _, sv := range services {
-		ports[sv.Name] = sv.Port
+		byDeployment[strconv.FormatInt(liveIDs[sv.Name], 10)] = sv.Name
 	}
 	for _, c := range containers {
-		service, dep := c.Labels["bumboat.service"], c.Labels["bumboat.deployment"]
-		if strconv.FormatInt(liveIDs[service], 10) != dep {
+		dep := c.Labels["bumboat.deployment"]
+		service, ok := byDeployment[dep]
+		if !ok || dep == "0" {
 			log.Printf("removing leftover container %s", strings.Join(c.Names, ","))
 			d.dk.remove(ctx, c.Id)
 			continue
@@ -395,6 +396,10 @@ func (d *daemon) DeleteService(ctx context.Context, ref *api.Ref) (*api.Empty, e
 	d.mu.Lock()
 	busy := d.running[ref.Name]
 	delete(d.pending, ref.Name)
+	liveID := ""
+	if l := d.live[ref.Name]; l != nil {
+		liveID = l.id
+	}
 	d.mu.Unlock()
 	if busy {
 		return nil, fail(errors.New("a deployment is running: wait for it to finish"))
@@ -404,7 +409,7 @@ func (d *daemon) DeleteService(ctx context.Context, ref *api.Ref) (*api.Empty, e
 		return nil, fail(err)
 	}
 	for _, c := range containers {
-		if c.Labels["bumboat.service"] == ref.Name {
+		if c.Labels["bumboat.service"] == ref.Name || c.Id == liveID {
 			d.dk.remove(ctx, c.Id)
 		}
 	}
@@ -422,6 +427,55 @@ func (d *daemon) DeleteService(ctx context.Context, ref *api.Ref) (*api.Empty, e
 	d.routes()
 	d.changed()
 	return &api.Empty{}, nil
+}
+
+func (d *daemon) RenameService(ctx context.Context, req *api.RenameRequest) (*api.Service, error) {
+	name, to := req.Name, req.NewName
+	d.mu.Lock()
+	busy := d.running[name] || d.pending[name] != nil
+	if !busy {
+		d.running[name] = true
+	}
+	d.mu.Unlock()
+	if busy {
+		return nil, fail(errors.New("a deployment is queued or running: wait for it to finish"))
+	}
+	err := d.st.renameService(name, to)
+	if err == nil {
+		tags, _ := d.dk.images(ctx, "bumboat/"+name)
+		for _, tag := range tags {
+			if err := d.dk.tag(ctx, tag, "bumboat/"+to+strings.TrimPrefix(tag, "bumboat/"+name)); err == nil {
+				d.dk.removeImage(ctx, tag)
+			}
+		}
+	}
+	var sv *api.Service
+	if err == nil {
+		sv, err = d.st.service(to)
+	}
+	d.mu.Lock()
+	delete(d.running, name)
+	if err == nil {
+		if l := d.live[name]; l != nil {
+			d.live[to] = l
+		}
+		d.stats[to] = d.stats[name]
+		delete(d.live, name)
+		delete(d.stats, name)
+	}
+	d.mu.Unlock()
+	if err != nil {
+		return nil, fail(err)
+	}
+	// redeploy what is live so the container takes the new name, labels and alias
+	if sv.Live != nil && sv.Live.Image != "" {
+		if _, err := d.enqueue(to, &api.Deployment{Sha: sv.Live.Sha, Message: sv.Live.Message, Image: sv.Live.Image}); err != nil {
+			return nil, fail(err)
+		}
+	}
+	d.routes()
+	d.changed()
+	return d.GetService(ctx, &api.Ref{Name: to})
 }
 
 func (d *daemon) Deploy(_ context.Context, ref *api.Ref) (*api.Deployment, error) {

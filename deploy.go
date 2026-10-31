@@ -136,7 +136,7 @@ func (d *daemon) deploy(ctx context.Context, sv *api.Service, dep *api.Deploymen
 	d.setStatus(dep, "building")
 	switch {
 	case dep.Image != "":
-		fmt.Fprintf(w, "rolling back to %s\n", dep.Image)
+		fmt.Fprintf(w, "deploying %s\n", dep.Image)
 	case sv.Source == "image":
 		dep.Image, dep.Message = sv.Image, sv.Image
 		fmt.Fprintf(w, "pulling %s\n", sv.Image)
@@ -164,8 +164,9 @@ func (d *daemon) deploy(ctx context.Context, sv *api.Service, dep *api.Deploymen
 		cfg.Env = append(cfg.Env, e.Key+"="+e.Value)
 	}
 	for _, v := range sv.Volumes {
-		cfg.HostConfig.Binds = append(cfg.HostConfig.Binds, "bumboat-"+sv.Name+"-"+v.Name+":"+v.Path)
+		cfg.HostConfig.Binds = append(cfg.HostConfig.Binds, v.Docker+":"+v.Path)
 	}
+	cfg.NetworkingConfig.EndpointsConfig = map[string]endpointConfig{"bumboat": {Aliases: []string{sv.Name}}}
 
 	d.mu.Lock()
 	old := d.live[sv.Name]

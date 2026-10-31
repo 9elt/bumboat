@@ -48,7 +48,12 @@ type containerConfig struct {
 			Config map[string]string
 		}
 	}
+	NetworkingConfig struct {
+		EndpointsConfig map[string]endpointConfig
+	}
 }
+
+type endpointConfig struct{ Aliases []string }
 
 func newDocker() *docker {
 	return &docker{&http.Client{Transport: &http.Transport{
@@ -247,4 +252,9 @@ func (d *docker) images(ctx context.Context, repo string) ([]string, error) {
 
 func (d *docker) removeImage(ctx context.Context, ref string) error {
 	return d.do(ctx, "DELETE", "/images/"+ref, nil, nil)
+}
+
+func (d *docker) tag(ctx context.Context, ref, to string) error {
+	repo, tag, _ := strings.Cut(to, ":")
+	return d.do(ctx, "POST", "/images/"+ref+"/tag?repo="+url.QueryEscape(repo)+"&tag="+url.QueryEscape(tag), nil, nil)
 }

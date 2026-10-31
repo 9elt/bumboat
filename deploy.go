@@ -160,8 +160,14 @@ func (d *daemon) deploy(ctx context.Context, sv *api.Service, dep *api.Deploymen
 	cfg := &containerConfig{Image: dep.Image, Labels: map[string]string{
 		"bumboat.service": sv.Name, "bumboat.deployment": strconv.FormatInt(dep.Id, 10), "bumboat.port": strconv.Itoa(int(sv.Port)),
 	}}
+	env := map[string]string{}
 	for _, e := range sv.Env {
 		cfg.Env = append(cfg.Env, e.Key+"="+e.Value)
+		env[e.Key] = e.Value
+	}
+	// the command is split on spaces, $VAR comes from the service's env so secrets stay out of it
+	for _, arg := range strings.Fields(sv.Command) {
+		cfg.Cmd = append(cfg.Cmd, os.Expand(arg, func(k string) string { return env[k] }))
 	}
 	for _, v := range sv.Volumes {
 		cfg.HostConfig.Binds = append(cfg.HostConfig.Binds, v.Docker+":"+v.Path)

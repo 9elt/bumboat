@@ -74,6 +74,7 @@ message Service {
   repeated EnvVar env = 12;
   repeated Domain domains = 13;
   repeated Volume volumes = 14;
+  string command = 15;
 
   string state = 20;
   bool dirty = 21;

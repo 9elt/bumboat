@@ -62,7 +62,7 @@ func init() {
 		{"<ctrl-o>", "", "jump back", func(m *model, n int) tea.Cmd { return m.jump(-max(n, 1)) }},
 		{"<tab>", "", "jump forward", func(m *model, n int) tea.Cmd { return m.jump(max(n, 1)) }},
 		{":", "", "command", func(m *model, _ int) tea.Cmd { return m.startCommand(":") }},
-		{"?", "", "key help", func(m *model, _ int) tea.Cmd { m.help = !m.help; return nil }},
+		{"?", "", "key help", func(m *model, _ int) tea.Cmd { m.help, m.helpOffset = !m.help, 0; return nil }},
 		{"<esc>", "", "cancel", func(m *model, _ int) tea.Cmd { m.help, m.visual, m.msg = false, -1, ""; return nil }},
 	}
 }

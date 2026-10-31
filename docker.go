@@ -37,6 +37,7 @@ type containerSummary struct {
 
 type containerConfig struct {
 	Image      string
+	Cmd        []string `json:",omitempty"`
 	Env        []string
 	Labels     map[string]string
 	HostConfig struct {
@@ -160,7 +161,15 @@ func (d *docker) restart(ctx context.Context, id string) error {
 }
 
 func (d *docker) remove(ctx context.Context, id string) error {
-	err := d.do(ctx, "DELETE", "/containers/"+id+"?force=true", nil, nil)
+	err := d.do(ctx, "DELETE", "/containers/"+id+"?force=true&v=true", nil, nil)
+	if isNotFound(err) {
+		return nil
+	}
+	return err
+}
+
+func (d *docker) removeVolume(ctx context.Context, name string) error {
+	err := d.do(ctx, "DELETE", "/volumes/"+name, nil, nil)
 	if isNotFound(err) {
 		return nil
 	}

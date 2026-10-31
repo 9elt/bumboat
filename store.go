@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS services (
 	context TEXT NOT NULL DEFAULT '.',
 	port INTEGER NOT NULL DEFAULT 0,
 	health_path TEXT NOT NULL DEFAULT '',
+	command TEXT NOT NULL DEFAULT '',
 	auto_deploy INTEGER NOT NULL DEFAULT 1,
 	dirty INTEGER NOT NULL DEFAULT 0,
 	live INTEGER NOT NULL DEFAULT 0,
@@ -109,9 +110,13 @@ func openStore(dir, keyPath string) (*store, error) {
 	if _, err := db.Exec(schema); err != nil {
 		return nil, fmt.Errorf("schema: %w", err)
 	}
-	// volumes keep their docker name when the service is renamed
-	if _, err := db.Exec(`ALTER TABLE volumes ADD COLUMN docker TEXT NOT NULL DEFAULT ''`); err != nil && !strings.Contains(err.Error(), "duplicate column") {
-		return nil, fmt.Errorf("schema: %w", err)
+	for _, column := range []string{
+		`volumes ADD COLUMN docker TEXT NOT NULL DEFAULT ''`, // volumes keep their docker name when the service is renamed
+		`services ADD COLUMN command TEXT NOT NULL DEFAULT ''`,
+	} {
+		if _, err := db.Exec(`ALTER TABLE ` + column); err != nil && !strings.Contains(err.Error(), "duplicate column") {
+			return nil, fmt.Errorf("schema: %w", err)
+		}
 	}
 	if _, err := db.Exec(`UPDATE volumes SET docker = 'bumboat-' || service || '-' || name WHERE docker = ''`); err != nil {
 		return nil, fmt.Errorf("schema: %w", err)
@@ -134,7 +139,7 @@ func (s *store) open(sealed string) (string, error) {
 	return string(plain), err
 }
 
-const serviceColumns = `name, source, repo, branch, image, build, dockerfile, context, port, health_path, auto_deploy, dirty, live`
+const serviceColumns = `name, source, repo, branch, image, build, dockerfile, context, port, health_path, command, auto_deploy, dirty, live`
 
 func (s *store) services(name string) ([]*api.Service, map[string]int64, error) {
 	rows, err := s.db.Query(`SELECT `+serviceColumns+` FROM services WHERE ? = '' OR name = ? ORDER BY name`, name, name)
@@ -147,7 +152,7 @@ func (s *store) services(name string) ([]*api.Service, map[string]int64, error) 
 	for rows.Next() {
 		var sv api.Service
 		var id int64
-		if err := rows.Scan(&sv.Name, &sv.Source, &sv.Repo, &sv.Branch, &sv.Image, &sv.Build, &sv.Dockerfile, &sv.Context, &sv.Port, &sv.HealthPath, &sv.AutoDeploy, &sv.Dirty, &id); err != nil {
+		if err := rows.Scan(&sv.Name, &sv.Source, &sv.Repo, &sv.Branch, &sv.Image, &sv.Build, &sv.Dockerfile, &sv.Context, &sv.Port, &sv.HealthPath, &sv.Command, &sv.AutoDeploy, &sv.Dirty, &id); err != nil {
 			rows.Close()
 			return nil, nil, err
 		}
@@ -284,15 +289,15 @@ func (s *store) saveService(sv *api.Service, create, dirty bool) error {
 	defer tx.Rollback()
 
 	if create {
-		_, err = tx.Exec(`INSERT INTO services (name, source, repo, branch, image, build, dockerfile, context, port, health_path, auto_deploy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			sv.Name, sv.Source, sv.Repo, sv.Branch, sv.Image, sv.Build, sv.Dockerfile, sv.Context, sv.Port, sv.HealthPath, sv.AutoDeploy)
+		_, err = tx.Exec(`INSERT INTO services (name, source, repo, branch, image, build, dockerfile, context, port, health_path, command, auto_deploy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			sv.Name, sv.Source, sv.Repo, sv.Branch, sv.Image, sv.Build, sv.Dockerfile, sv.Context, sv.Port, sv.HealthPath, sv.Command, sv.AutoDeploy)
 		if err != nil && strings.Contains(err.Error(), "UNIQUE") {
 			return fmt.Errorf("service %q already exists", sv.Name)
 		}
 	} else {
 		var res sql.Result
-		res, err = tx.Exec(`UPDATE services SET source = ?, repo = ?, branch = ?, image = ?, build = ?, dockerfile = ?, context = ?, port = ?, health_path = ?, auto_deploy = ?, dirty = CASE WHEN ? THEN live != 0 ELSE dirty END WHERE name = ?`,
-			sv.Source, sv.Repo, sv.Branch, sv.Image, sv.Build, sv.Dockerfile, sv.Context, sv.Port, sv.HealthPath, sv.AutoDeploy, dirty, sv.Name)
+		res, err = tx.Exec(`UPDATE services SET source = ?, repo = ?, branch = ?, image = ?, build = ?, dockerfile = ?, context = ?, port = ?, health_path = ?, command = ?, auto_deploy = ?, dirty = CASE WHEN ? THEN live != 0 ELSE dirty END WHERE name = ?`,
+			sv.Source, sv.Repo, sv.Branch, sv.Image, sv.Build, sv.Dockerfile, sv.Context, sv.Port, sv.HealthPath, sv.Command, sv.AutoDeploy, dirty, sv.Name)
 		if n, _ := res.RowsAffected(); err == nil && n == 0 {
 			return fmt.Errorf("no service %q", sv.Name)
 		}

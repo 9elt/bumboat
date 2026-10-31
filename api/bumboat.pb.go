@@ -365,6 +365,7 @@ type Service struct {
 	Env           []*EnvVar              `protobuf:"bytes,12,rep,name=env,proto3" json:"env,omitempty"`
 	Domains       []*Domain              `protobuf:"bytes,13,rep,name=domains,proto3" json:"domains,omitempty"`
 	Volumes       []*Volume              `protobuf:"bytes,14,rep,name=volumes,proto3" json:"volumes,omitempty"`
+	Command       string                 `protobuf:"bytes,15,opt,name=command,proto3" json:"command,omitempty"`
 	State         string                 `protobuf:"bytes,20,opt,name=state,proto3" json:"state,omitempty"`
 	Dirty         bool                   `protobuf:"varint,21,opt,name=dirty,proto3" json:"dirty,omitempty"`
 	Live          *Deployment            `protobuf:"bytes,22,opt,name=live,proto3" json:"live,omitempty"`
@@ -501,6 +502,13 @@ func (x *Service) GetVolumes() []*Volume {
 		return x.Volumes
 	}
 	return nil
+}
+
+func (x *Service) GetCommand() string {
+	if x != nil {
+		return x.Command
+	}
+	return ""
 }
 
 func (x *Service) GetState() string {
@@ -1370,7 +1378,7 @@ const file_bumboat_v1_bumboat_proto_rawDesc = "" +
 	"\x06docker\x18\x03 \x01(\tR\x06docker\">\n" +
 	"\rRenameRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x19\n" +
-	"\bnew_name\x18\x02 \x01(\tR\anewName\"\xc7\x04\n" +
+	"\bnew_name\x18\x02 \x01(\tR\anewName\"\xe1\x04\n" +
 	"\aService\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x16\n" +
 	"\x06source\x18\x02 \x01(\tR\x06source\x12\x12\n" +
@@ -1390,7 +1398,8 @@ const file_bumboat_v1_bumboat_proto_rawDesc = "" +
 	"autoDeploy\x12$\n" +
 	"\x03env\x18\f \x03(\v2\x12.bumboat.v1.EnvVarR\x03env\x12,\n" +
 	"\adomains\x18\r \x03(\v2\x12.bumboat.v1.DomainR\adomains\x12,\n" +
-	"\avolumes\x18\x0e \x03(\v2\x12.bumboat.v1.VolumeR\avolumes\x12\x14\n" +
+	"\avolumes\x18\x0e \x03(\v2\x12.bumboat.v1.VolumeR\avolumes\x12\x18\n" +
+	"\acommand\x18\x0f \x01(\tR\acommand\x12\x14\n" +
 	"\x05state\x18\x14 \x01(\tR\x05state\x12\x14\n" +
 	"\x05dirty\x18\x15 \x01(\bR\x05dirty\x12*\n" +
 	"\x04live\x18\x16 \x01(\v2\x16.bumboat.v1.DeploymentR\x04live\x12*\n" +

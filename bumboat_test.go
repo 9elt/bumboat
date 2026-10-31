@@ -423,12 +423,23 @@ func TestVimMotions(t *testing.T) {
 		t.Fatal("d should wait for dd")
 	}
 	press("d")
-	if !strings.HasPrefix(m.confirm, "delete svc") {
-		t.Fatalf("dd should ask before deleting, got %q", m.confirm)
+	if m.mode != insert || !strings.HasPrefix(m.label, "type svc") {
+		t.Fatalf("dd should ask for the name, got mode %d label %q", m.mode, m.label)
 	}
-	press("n")
-	if m.confirm != "" || m.msg != "cancelled" {
-		t.Fatal("anything but y cancels")
+	press("s", "v", "enter")
+	if m.mode != normal || !strings.HasPrefix(m.msg, "not deleted") {
+		t.Fatalf("a wrong name should not delete: %q", m.msg)
+	}
+	press("d", "d", "s", "v", "c", "esc")
+	if m.msg != "cancelled" {
+		t.Fatalf("esc should cancel: %q", m.msg)
+	}
+	press("d", "d")
+	for _, r := range m.serviceAt(m.cursor) {
+		press(string(r))
+	}
+	if cmd := press("enter"); cmd == nil {
+		t.Fatal("typing the name should delete")
 	}
 }
 
@@ -550,5 +561,31 @@ func TestRenameServiceKeepsVolumes(t *testing.T) {
 	}
 	if err := d.st.renameService("db", "postgres"); err == nil {
 		t.Fatal("renamed onto an existing service")
+	}
+}
+
+func TestTemplates(t *testing.T) {
+	d := testDaemon(t)
+	want := map[string]string{
+		"postgres": "postgres://postgres:pw@postgres:5432/postgres",
+		"mariadb":  "mysql://root:pw@mariadb:3306",
+		"mongodb":  "mongodb://root:pw@mongodb:27017",
+		"redis":    "redis://:pw@redis:6379",
+		"rustfs":   "http://rustfs:9000 (access key admin, secret key pw)",
+	}
+	for _, tmpl := range templates {
+		sv := tmpl.service(tmpl.name, "pw")
+		if err := d.st.saveService(sv, true, false); err != nil {
+			t.Fatalf("%s: %v", tmpl.name, err)
+		}
+		if got := connectionURL(sv, true); got != want[tmpl.name] {
+			t.Errorf("%s: url %q, want %q", tmpl.name, got, want[tmpl.name])
+		}
+		if got := connectionURL(sv, false); strings.Contains(got, "pw") {
+			t.Errorf("%s: masked url shows the password: %q", tmpl.name, got)
+		}
+	}
+	if p := password(); len(p) != 24 || strings.ContainsAny(p, " $") {
+		t.Fatalf("password %q", p)
 	}
 }

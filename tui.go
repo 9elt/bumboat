@@ -1,7 +1,6 @@
 package main
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -51,6 +50,8 @@ type place struct {
 
 type wizard struct {
 	sv      *api.Service
+	tmpl    *imageTemplate
+	pass    string
 	domain  string
 	step    int
 	options []string
@@ -69,21 +70,23 @@ type model struct {
 	jumps          []place
 	jumpAt         int
 
-	mode    int
-	keys    string
-	count   int
-	seq     int
-	msg     string
-	isErr   bool
-	help    bool
-	confirm string
-	onYes   func() tea.Cmd
+	mode       int
+	keys       string
+	count      int
+	seq        int
+	msg        string
+	isErr      bool
+	help       bool
+	helpOffset int
+	confirm    string
+	onYes      func() tea.Cmd
 
 	cmdline textinput.Model
 	history []string
 	histAt  int
 	input   textinput.Model
 	label   string
+	danger  bool
 	commit  func(string) tea.Cmd
 	cancel  func() tea.Cmd
 
@@ -662,8 +665,16 @@ func (m *model) deleteService(name string, force bool) tea.Cmd {
 	if force {
 		return del()
 	}
-	m.confirm, m.onYes = "delete "+name+" with its containers and images? volumes are kept (y/n)", del
-	return nil
+	cmd := m.startInsert("type "+name+" to delete it and its data", "", func(v string) tea.Cmd {
+		if strings.TrimSpace(v) != name {
+			m.flash("not deleted: the name didn't match")
+			return nil
+		}
+		return del()
+	})
+	m.cancel = func() tea.Cmd { m.flash("cancelled"); return nil }
+	m.danger = true
+	return cmd
 }
 
 func (m *model) renameService(name, to string) tea.Cmd {
@@ -763,7 +774,7 @@ func (m *model) undoRedo(from, to *[]*api.Service, n int) {
 }
 
 func (m *model) startInsert(label, value string, commit func(string) tea.Cmd) tea.Cmd {
-	m.mode, m.label, m.commit, m.cancel = insert, label, commit, nil
+	m.mode, m.label, m.commit, m.cancel, m.danger = insert, label, commit, nil, false
 	m.input.SetValue(value)
 	m.input.Width = m.w - len(label) - 16
 	m.input.CursorEnd()
@@ -852,6 +863,7 @@ func (m *model) fields() []field {
 			return err
 		}},
 		field{"Health path", sv.HealthPath, func(v string) error { sv.HealthPath = v; return nil }},
+		field{"Command", sv.Command, func(v string) error { sv.Command = v; return nil }},
 		field{"Auto deploy", auto, func(v string) error {
 			sv.AutoDeploy = v == "on" || v == "yes" || v == "true"
 			return nil
@@ -859,27 +871,9 @@ func (m *model) fields() []field {
 		field{"State", sv.State, nil},
 		field{"Usage", usage, nil},
 		field{"Public URL", public, nil},
-		field{"Internal URL", m.internalURL(m.reveal), nil},
+		field{"Internal URL", connectionURL(m.draft, m.reveal), nil},
 		field{"Live", live, nil},
 	)
-}
-
-// internalURL is how other services reach this one over the bumboat network.
-func (m *model) internalURL(reveal bool) string {
-	sv := m.draft
-	addr := fmt.Sprintf("%s:%d", sv.Name, sv.Port)
-	if !strings.Contains(sv.Image, "postgres") {
-		return addr
-	}
-	env := map[string]string{"POSTGRES_USER": "postgres"}
-	for _, e := range sv.Env {
-		env[e.Key] = e.Value
-	}
-	db, pass := cmp.Or(env["POSTGRES_DB"], env["POSTGRES_USER"]), env["POSTGRES_PASSWORD"]
-	if !reveal && pass != "" {
-		pass = "****"
-	}
-	return fmt.Sprintf("postgres://%s:%s@%s/%s", env["POSTGRES_USER"], pass, addr, db)
 }
 
 func (m *model) editField(replace bool) tea.Cmd {
@@ -1145,7 +1139,7 @@ func (m *model) yank(int) tea.Cmd {
 			v = fs[m.cursor].value
 			switch fs[m.cursor].label {
 			case "Internal URL":
-				v = m.internalURL(true)
+				v = connectionURL(m.draft, true)
 			case "Public URL":
 				v, _, _ = strings.Cut(v, " ")
 				v = strings.TrimPrefix(v, "none")
@@ -1209,6 +1203,10 @@ func (m *model) lines() []string {
 }
 
 func (m *model) move(delta int) {
+	if m.help {
+		m.helpOffset = max(0, min(len(m.helpLines())-m.bodyHeight(), m.helpOffset+delta))
+		return
+	}
 	n := len(m.lines())
 	if m.active("logs") && delta < 0 {
 		m.follow = false
@@ -1443,7 +1441,7 @@ func (m *model) exec(line string) tea.Cmd {
 	case "settings":
 		return m.open("settings", "", 0)
 	case "help":
-		m.help = true
+		m.help, m.helpOffset = true, 0
 		return nil
 	case "set":
 		key, value, ok := strings.Cut(arg, "=")
@@ -1538,6 +1536,9 @@ func (m *model) connectPrompt(int) tea.Cmd {
 }
 
 func (m *model) wizardSteps() []string {
+	if m.wiz.tmpl != nil {
+		return []string{"source", "password", "name"}
+	}
 	if m.wiz.sv.Source == "image" {
 		return []string{"source", "image", "port", "name", "domain"}
 	}
@@ -1570,7 +1571,21 @@ func (m *model) wizardEnter() tea.Cmd {
 	var cmd tea.Cmd
 	switch step {
 	case "source":
-		w.options = []string{"github", "image"}
+		w.options = []string{"github repository", "docker image"}
+		for _, t := range templates {
+			w.options = append(w.options, fmt.Sprintf("%-18s%s", t.name, dim.Render(t.image)))
+		}
+	case "password":
+		if w.pass == "" {
+			w.pass = password()
+		}
+		cmd = m.startInsert("password (generated, change it if you like)", w.pass, advance(func(v string) error {
+			if v == "" || strings.ContainsAny(v, " \t$") {
+				return errors.New("the password can't be empty or contain spaces or $")
+			}
+			w.pass = v
+			return nil
+		}))
 	case "repository":
 		w.loading = true
 		cmd = call(func(ctx context.Context) (*api.RepoList, error) { return m.c.ListRepos(ctx, &api.Empty{}) }, func(l *api.RepoList) tea.Msg {
@@ -1620,6 +1635,12 @@ func (m *model) wizardEnter() tea.Cmd {
 		}))
 	case "name":
 		name := sv.Name
+		if name == "" && w.tmpl != nil {
+			name = w.tmpl.name
+			for n := 2; slices.ContainsFunc(m.list.GetServices(), func(s *api.Service) bool { return s.Name == name }); n++ {
+				name = fmt.Sprintf("%s-%d", w.tmpl.name, n)
+			}
+		}
 		if name == "" {
 			base := sv.Repo
 			if sv.Source == "image" {
@@ -1662,6 +1683,9 @@ func (m *model) wizardNext() tea.Cmd {
 		return m.wizardEnter()
 	}
 	sv := m.wiz.sv
+	if t := m.wiz.tmpl; t != nil {
+		sv = t.service(sv.Name, m.wiz.pass)
+	}
 	m.wiz = nil
 	m.screen = "services"
 	return func() tea.Msg {
@@ -1697,7 +1721,13 @@ func (m *model) wizardChoose(int) tea.Cmd {
 	v := w.options[m.cursor]
 	switch m.wizardSteps()[w.step] {
 	case "source":
-		w.sv.Source = v
+		w.sv.Source, w.tmpl, w.sv.Name = "github", nil, ""
+		switch {
+		case m.cursor == 1:
+			w.sv.Source = "image"
+		case m.cursor >= 2:
+			w.tmpl = &templates[m.cursor-2]
+		}
 	case "repository":
 		if w.sv.Repo != v {
 			w.sv.Branch, w.sv.Name = "", ""
@@ -1814,9 +1844,11 @@ func (m *model) View() string {
 	h := m.bodyHeight()
 	for i := 0; i < h; i++ {
 		line := ""
-		if j := m.offset + i; m.help && i < len(body) {
-			line = body[i]
-		} else if !m.help && j < len(body) {
+		j := m.offset + i
+		if m.help {
+			j = m.helpOffset + i
+		}
+		if j < len(body) {
 			line = body[j]
 		}
 		b.WriteString(lipgloss.NewStyle().MaxWidth(m.w).Render(line) + "\n")
@@ -1826,7 +1858,11 @@ func (m *model) View() string {
 	case m.mode == command:
 		b.WriteString(m.cmdline.View())
 	case m.mode == insert:
-		b.WriteString(bold.Render("-- INSERT --") + " " + m.label + ": " + m.input.View())
+		label := m.label + ":"
+		if m.danger {
+			label = red.Render(label)
+		}
+		b.WriteString(bold.Render("-- INSERT --") + " " + label + " " + m.input.View())
 	case m.confirm != "":
 		b.WriteString(yellow.Render(m.confirm))
 	default:
@@ -1867,7 +1903,7 @@ func (m *model) hints() [][2]string {
 	case m.mode == insert:
 		return [][2]string{{"enter", "done"}, {"esc", "done"}}
 	case m.help:
-		return [][2]string{{"?", "close help"}}
+		return [][2]string{{"j k", "scroll"}, {"?", "close help"}}
 	case m.crumb:
 		return [][2]string{{"enter", "go to services"}, {"^j", "back down"}, {"?", "help"}}
 	}
@@ -2015,7 +2051,7 @@ func (m *model) pinned() []string {
 		return nil
 	}
 	titles := map[string]string{
-		"source":       "Where does the code come from?",
+		"source":       "What do you want to deploy?",
 		"repository":   "Pick a repository (only repos the GitHub App can see)",
 		"branch":       "Which branch deploys?",
 		"build method": "How should it build? (suggested first)",

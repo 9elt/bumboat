@@ -390,7 +390,8 @@ func (d *daemon) UpdateService(ctx context.Context, sv *api.Service) (*api.Servi
 }
 
 func (d *daemon) DeleteService(ctx context.Context, ref *api.Ref) (*api.Empty, error) {
-	if _, err := d.st.service(ref.Name); err != nil {
+	sv, err := d.st.service(ref.Name)
+	if err != nil {
 		return nil, fail(err)
 	}
 	d.mu.Lock()
@@ -416,6 +417,11 @@ func (d *daemon) DeleteService(ctx context.Context, ref *api.Ref) (*api.Empty, e
 	tags, _ := d.dk.images(ctx, "bumboat/"+ref.Name)
 	for _, tag := range tags {
 		d.dk.removeImage(ctx, tag)
+	}
+	for _, v := range sv.Volumes {
+		if err := d.dk.removeVolume(ctx, v.Docker); err != nil {
+			return nil, fail(fmt.Errorf("volume %s: %w", v.Docker, err))
+		}
 	}
 	d.mu.Lock()
 	delete(d.live, ref.Name)

@@ -30,7 +30,7 @@ if [ "$(docker inspect -f '{{.State.Running}}' bumboat-dev 2>/dev/null)" != true
 		-v "$PWD":/src -w /src \
 		-v bumboat-e2e-gomod:/go/pkg/mod -v bumboat-e2e-gocache:/root/.cache \
 		-v bumboat-dev:/var/lib/bumboat -v bumboat-dev-key:/etc/bumboat \
-		bumboat-e2e sh -c 'go build -o /bumboatd . && exec /bumboatd daemon' >/dev/null
+		bumboat-e2e sh -c 'go build -o /bumboatd ./cmd/bumboat && exec /bumboatd daemon' >/dev/null
 	until docker exec bumboat-dev test -S /run/bumboat/bumboat.sock 2>/dev/null; do
 		[ "$(docker inspect -f '{{.State.Running}}' bumboat-dev)" = true ] || exec docker logs bumboat-dev
 		sleep 0.5
@@ -38,4 +38,4 @@ if [ "$(docker inspect -f '{{.State.Running}}' bumboat-dev 2>/dev/null)" != true
 fi
 
 exec docker exec -it -e TERM="${TERM:-xterm-256color}" -e COLORTERM="${COLORTERM:-}" bumboat-dev \
-	sh -c 'go build -o /usr/local/bin/bumboat . && exec bumboat'
+	sh -c 'go build -o /usr/local/bin/bumboat ./cmd/bumboat && exec bumboat'

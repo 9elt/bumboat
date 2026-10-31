@@ -20,6 +20,15 @@ curl -fsSL https://raw.githubusercontent.com/9elt/bumboat/main/install.sh | sudo
 
 Then run `bumboat`.
 
+> [!NOTE]
+> For a bare Ubuntu 24.04 server you can run this. It creates an ssh key, sets up the firewall, Docker and a `bumboat` user, installs bumboat and opens it.
+>
+> ```
+> curl -fsSL https://raw.githubusercontent.com/9elt/bumboat/main/ubuntu-setup.sh | sh
+> ```
+>
+> Works on Linux and macOS, on Windows it requires WSL or Git Bash.
+
 ## Use
 
 - Connect GitHub once with `:settings` and `<space>g`, open the printed link and install the app on the repos you want.

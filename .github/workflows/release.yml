@@ -22,7 +22,7 @@ jobs:
         run: |
           mkdir dist
           for arch in amd64 arm64; do
-            GOOS=linux GOARCH=$arch CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=$GITHUB_REF_NAME" -o dist/bumboat-linux-$arch .
+            GOOS=linux GOARCH=$arch CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=$GITHUB_REF_NAME" -o dist/bumboat-linux-$arch ./cmd/bumboat
           done
           cd dist && sha256sum bumboat-linux-* > checksums.txt
 

@@ -15,4 +15,4 @@ docker run --rm --network bumboat \
 	-v /var/run/docker.sock:/var/run/docker.sock \
 	-v "$PWD":/src -w /src \
 	-v bumboat-e2e-gomod:/go/pkg/mod -v bumboat-e2e-gocache:/root/.cache \
-	bumboat-e2e go test -tags e2e -run E2E -count 1 -v -timeout 20m "$@" .
+	bumboat-e2e go test -tags e2e -run E2E -count 1 -v -timeout 20m "$@" ./cmd/bumboat

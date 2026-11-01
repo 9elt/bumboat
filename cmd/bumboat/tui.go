@@ -1973,7 +1973,7 @@ func (m *model) body() []string {
 				last = stateStyle(sv.Last.Status).Render(fmt.Sprintf("#%d %s", sv.Last.Id, sv.Last.Status)) + " " + dim.Render(ago(sv.Last.Started))
 			}
 			if sv.Live != nil {
-				commit = fmt.Sprintf("%.7s %.30s", sv.Live.Sha, sv.Live.Message)
+				commit = strings.TrimSpace(fmt.Sprintf("%.7s %.30s", sv.Live.Sha, sv.Live.Message))
 			}
 			var domains []string
 			for _, d := range sv.Domains {

@@ -113,7 +113,7 @@ func cliList() error {
 		}
 		commit := ""
 		if sv.Live != nil {
-			commit = fmt.Sprintf("%.7s %s", sv.Live.Sha, sv.Live.Message)
+			commit = strings.TrimSpace(fmt.Sprintf("%.7s %s", sv.Live.Sha, sv.Live.Message))
 		}
 		fmt.Fprintf(w, "%s\t%s\t%.50s\t%s\n", sv.Name, sv.State, commit, strings.Join(domains, " "))
 	}

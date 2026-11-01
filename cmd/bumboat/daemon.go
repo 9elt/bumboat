@@ -439,6 +439,66 @@ func (d *daemon) DeleteService(ctx context.Context, ref *api.Ref) (*api.Empty, e
 	return &api.Empty{}, nil
 }
 
+// Shell runs bash, or sh without it, in the service's live container.
+func (d *daemon) Shell(stream api.Bumboat_ShellServer) error {
+	ctx := stream.Context()
+	first, err := stream.Recv()
+	if err != nil {
+		return err
+	}
+	d.mu.Lock()
+	l := d.live[first.Service]
+	d.mu.Unlock()
+	if l == nil {
+		return fail(fmt.Errorf("%s has no running container", first.Service))
+	}
+	term := first.Term
+	if term == "" {
+		term = "xterm-256color"
+	}
+	sh := []string{"sh", "-c", "command -v bash >/dev/null && exec bash || exec sh"}
+	id, conn, err := d.dk.exec(ctx, l.id, sh, []string{"TERM=" + term})
+	if err != nil {
+		return fail(err)
+	}
+	defer conn.Close()
+	if first.Rows > 0 {
+		d.dk.resizeExec(ctx, id, first.Rows, first.Cols)
+	}
+	go func() {
+		for {
+			in, err := stream.Recv()
+			if err != nil {
+				conn.Close()
+				return
+			}
+			if len(in.Data) > 0 {
+				conn.Write(in.Data)
+			}
+			if in.Rows > 0 {
+				d.dk.resizeExec(ctx, id, in.Rows, in.Cols)
+			}
+		}
+	}()
+	buf := make([]byte, 32<<10)
+	for {
+		n, err := conn.Read(buf)
+		if n > 0 {
+			if err := stream.Send(&api.ShellOutput{Data: buf[:n]}); err != nil {
+				return err
+			}
+		}
+		if err != nil {
+			break
+		}
+	}
+	code, err := d.dk.execExitCode(ctx, id)
+	if err != nil {
+		return fail(err)
+	}
+	return stream.Send(&api.ShellOutput{Exited: true, ExitCode: int32(code)})
+}
+
 // Upgrade installs the latest release and, after replying, exits for systemd to start it.
 func (d *daemon) Upgrade(context.Context, *api.Empty) (*api.UpgradeReply, error) {
 	tag, installed, err := installRelease()

@@ -33,6 +33,7 @@ Then run `bumboat`.
 
 - Connect GitHub once with `:settings` and `<space>g`, open the printed link and install the app on the repos you want.
 - Add a service with `o`, either a repo and branch (Dockerfile or Railpack) or an image.
+- `:sh` opens a shell in a service's container, `exit` goes back.
 - `?` shows the keys. Edits are drafts until `:w`, and `<space>d` deploys.
 
 ```

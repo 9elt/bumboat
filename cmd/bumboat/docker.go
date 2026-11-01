@@ -293,3 +293,48 @@ func (d *docker) tag(ctx context.Context, ref, to string) error {
 	repo, tag, _ := strings.Cut(to, ":")
 	return d.do(ctx, "POST", "/images/"+ref+"/tag?repo="+url.QueryEscape(repo)+"&tag="+url.QueryEscape(tag), nil, nil)
 }
+
+// exec starts cmd in the container on a tty and returns the connection wired to it.
+func (d *docker) exec(ctx context.Context, id string, cmd, env []string) (string, net.Conn, error) {
+	var created struct{ Id string }
+	cfg := map[string]any{"AttachStdin": true, "AttachStdout": true, "AttachStderr": true, "Tty": true, "Cmd": cmd, "Env": env}
+	if err := d.do(ctx, "POST", "/containers/"+id+"/exec", cfg, &created); err != nil {
+		return "", nil, err
+	}
+	conn, err := (&net.Dialer{}).DialContext(ctx, "unix", "/var/run/docker.sock")
+	if err != nil {
+		return "", nil, err
+	}
+	// start hijacks the connection: after the 101 it carries the tty both ways
+	body := `{"Detach":false,"Tty":true}`
+	fmt.Fprintf(conn, "POST /v1.44/exec/%s/start HTTP/1.1\r\nHost: docker\r\nContent-Type: application/json\r\n"+
+		"Connection: Upgrade\r\nUpgrade: tcp\r\nContent-Length: %d\r\n\r\n%s", created.Id, len(body), body)
+	r := bufio.NewReader(conn)
+	res, err := http.ReadResponse(r, nil)
+	if err == nil && res.StatusCode != http.StatusSwitchingProtocols {
+		b, _ := io.ReadAll(res.Body)
+		err = &dockerError{res.StatusCode, strings.TrimSpace(string(b))}
+	}
+	if err != nil {
+		conn.Close()
+		return "", nil, err
+	}
+	return created.Id, bufferedConn{conn, r}, nil
+}
+
+type bufferedConn struct {
+	net.Conn
+	r *bufio.Reader
+}
+
+func (c bufferedConn) Read(p []byte) (int, error) { return c.r.Read(p) }
+
+func (d *docker) resizeExec(ctx context.Context, id string, rows, cols uint32) error {
+	return d.do(ctx, "POST", fmt.Sprintf("/exec/%s/resize?h=%d&w=%d", id, rows, cols), nil, nil)
+}
+
+func (d *docker) execExitCode(ctx context.Context, id string) (int, error) {
+	var info struct{ ExitCode int }
+	err := d.do(ctx, "GET", "/exec/"+id+"/json", nil, &info)
+	return info.ExitCode, err
+}

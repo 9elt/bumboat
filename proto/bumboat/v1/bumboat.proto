@@ -29,6 +29,8 @@ service Bumboat {
 
   rpc Backup(BackupRequest) returns (stream BackupChunk);
   rpc Upgrade(Empty) returns (UpgradeReply);
+  // Shell runs a shell in the service's container: the first message names the service.
+  rpc Shell(stream ShellInput) returns (stream ShellOutput);
 }
 
 message Empty {}
@@ -64,6 +66,20 @@ message BackupRequest {
 message BackupChunk {
   bytes data = 1;
   string warning = 2;
+}
+
+message ShellInput {
+  string service = 1;
+  string term = 2;
+  bytes data = 3;
+  uint32 rows = 4;
+  uint32 cols = 5;
+}
+
+message ShellOutput {
+  bytes data = 1;
+  bool exited = 2;
+  int32 exit_code = 3;
 }
 
 message UpgradeReply {

@@ -40,6 +40,7 @@ const (
 	Bumboat_SuggestBuild_FullMethodName    = "/bumboat.v1.Bumboat/SuggestBuild"
 	Bumboat_Backup_FullMethodName          = "/bumboat.v1.Bumboat/Backup"
 	Bumboat_Upgrade_FullMethodName         = "/bumboat.v1.Bumboat/Upgrade"
+	Bumboat_Shell_FullMethodName           = "/bumboat.v1.Bumboat/Shell"
 )
 
 // BumboatClient is the client API for Bumboat service.
@@ -67,6 +68,8 @@ type BumboatClient interface {
 	SuggestBuild(ctx context.Context, in *SuggestBuildRequest, opts ...grpc.CallOption) (*SuggestBuildReply, error)
 	Backup(ctx context.Context, in *BackupRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[BackupChunk], error)
 	Upgrade(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*UpgradeReply, error)
+	// Shell runs a shell in the service's container: the first message names the service.
+	Shell(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ShellInput, ShellOutput], error)
 }
 
 type bumboatClient struct {
@@ -314,6 +317,19 @@ func (c *bumboatClient) Upgrade(ctx context.Context, in *Empty, opts ...grpc.Cal
 	return out, nil
 }
 
+func (c *bumboatClient) Shell(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ShellInput, ShellOutput], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &Bumboat_ServiceDesc.Streams[3], Bumboat_Shell_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[ShellInput, ShellOutput]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Bumboat_ShellClient = grpc.BidiStreamingClient[ShellInput, ShellOutput]
+
 // BumboatServer is the server API for Bumboat service.
 // All implementations must embed UnimplementedBumboatServer
 // for forward compatibility.
@@ -339,6 +355,8 @@ type BumboatServer interface {
 	SuggestBuild(context.Context, *SuggestBuildRequest) (*SuggestBuildReply, error)
 	Backup(*BackupRequest, grpc.ServerStreamingServer[BackupChunk]) error
 	Upgrade(context.Context, *Empty) (*UpgradeReply, error)
+	// Shell runs a shell in the service's container: the first message names the service.
+	Shell(grpc.BidiStreamingServer[ShellInput, ShellOutput]) error
 	mustEmbedUnimplementedBumboatServer()
 }
 
@@ -411,6 +429,9 @@ func (UnimplementedBumboatServer) Backup(*BackupRequest, grpc.ServerStreamingSer
 }
 func (UnimplementedBumboatServer) Upgrade(context.Context, *Empty) (*UpgradeReply, error) {
 	return nil, status.Error(codes.Unimplemented, "method Upgrade not implemented")
+}
+func (UnimplementedBumboatServer) Shell(grpc.BidiStreamingServer[ShellInput, ShellOutput]) error {
+	return status.Error(codes.Unimplemented, "method Shell not implemented")
 }
 func (UnimplementedBumboatServer) mustEmbedUnimplementedBumboatServer() {}
 func (UnimplementedBumboatServer) testEmbeddedByValue()                 {}
@@ -790,6 +811,13 @@ func _Bumboat_Upgrade_Handler(srv interface{}, ctx context.Context, dec func(int
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Bumboat_Shell_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(BumboatServer).Shell(&grpc.GenericServerStream[ShellInput, ShellOutput]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Bumboat_ShellServer = grpc.BidiStreamingServer[ShellInput, ShellOutput]
+
 // Bumboat_ServiceDesc is the grpc.ServiceDesc for Bumboat service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -885,6 +913,12 @@ var Bumboat_ServiceDesc = grpc.ServiceDesc{
 			StreamName:    "Backup",
 			Handler:       _Bumboat_Backup_Handler,
 			ServerStreams: true,
+		},
+		{
+			StreamName:    "Shell",
+			Handler:       _Bumboat_Shell_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
 		},
 	},
 	Metadata: "bumboat/v1/bumboat.proto",

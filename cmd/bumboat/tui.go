@@ -261,6 +261,10 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cmd = msg.then()
 			}
 		}
+	case shellMsg:
+		if msg.err != nil {
+			m.fail("%s", errorText(msg.err))
+		}
 	case envEditedMsg:
 		cmd = m.envEdited(msg)
 	case depsMsg:
@@ -1078,6 +1082,8 @@ func (m *model) toggleBuildEnv(int) tea.Cmd {
 	return nil
 }
 
+type shellMsg struct{ err error }
+
 type envEditedMsg struct {
 	path string
 	err  error
@@ -1259,7 +1265,7 @@ func (m *model) scroll() {
 	}
 }
 
-var commands = []string{"deploy", "rollback", "restart", "stop", "new", "rm", "rename", "clone", "e", "logs", "set", "unset", "domain", "config", "settings", "w", "wd", "wq", "q", "qa", "help"}
+var commands = []string{"deploy", "rollback", "restart", "stop", "new", "rm", "rename", "clone", "sh", "e", "logs", "set", "unset", "domain", "config", "settings", "w", "wd", "wq", "q", "qa", "help"}
 
 func (m *model) startCommand(prompt string) tea.Cmd {
 	m.mode = command
@@ -1317,7 +1323,7 @@ func (m *model) complete() {
 	if len(words) > 1 {
 		options = nil
 		switch strings.TrimSuffix(words[0], "!") {
-		case "deploy", "restart", "stop", "rm", "rename", "clone", "e", "logs":
+		case "deploy", "restart", "stop", "rm", "rename", "clone", "sh", "e", "logs":
 			for _, sv := range m.list.GetServices() {
 				options = append(options, sv.Name)
 			}
@@ -1438,6 +1444,12 @@ func (m *model) exec(line string) tea.Cmd {
 			tab = slices.Index(tabs, "logs")
 		}
 		return m.open("service", target, tab)
+	case "sh":
+		if target == "" {
+			m.fail("usage: :sh [svc]")
+			return nil
+		}
+		return tea.Exec(&shell{c: m.c, service: target}, func(err error) tea.Msg { return shellMsg{err} })
 	case "settings":
 		return m.open("settings", "", 0)
 	case "help":
@@ -1910,7 +1922,7 @@ func (m *model) hints() [][2]string {
 	var out [][2]string
 	switch {
 	case m.screen == "services":
-		out = [][2]string{{"enter", "open"}, {"o", "new"}, {"␣d", "deploy"}, {"␣r", "restart"}, {"dd", "delete"}, {":clone", ""}, {":settings", ""}}
+		out = [][2]string{{"enter", "open"}, {"o", "new"}, {"␣d", "deploy"}, {"␣r", "restart"}, {"dd", "delete"}, {":sh", ""}, {":clone", ""}, {":settings", ""}}
 	case m.screen == "wizard":
 		out = [][2]string{{"enter", "choose"}, {"h", "previous step"}}
 	case m.screen == "settings":
@@ -1920,13 +1932,13 @@ func (m *model) hints() [][2]string {
 	case m.active("logs"):
 		out = [][2]string{{"b", "build / runtime"}, {"G", "follow"}, {"V", "select"}, {"/", "search"}}
 	case m.active("env"):
-		out = [][2]string{{"enter", "edit"}, {"o", "add"}, {"dd", "delete"}, {"v", "reveal"}, {"E", "$EDITOR"}, {":w", "save"}}
+		out = [][2]string{{"enter", "edit"}, {"o", "add"}, {"dd", "delete"}, {"v", "reveal"}, {"b", "build-time"}, {"E", "$EDITOR"}, {":w", "save"}}
 	case m.active("rows"):
 		out = [][2]string{{"enter", "edit"}, {"o", "add"}, {"dd", "delete"}, {":w", "save"}}
 	case m.active("fields"):
 		out = [][2]string{{"enter", "edit"}, {":w", "save"}, {"␣d", "deploy"}}
 		if m.screen == "service" {
-			out = append(out, [2]string{":clone", ""})
+			out = append(out, [2]string{":sh", ""}, [2]string{":clone", ""})
 		}
 	}
 	if m.screen == "service" {
@@ -2071,7 +2083,7 @@ func (m *model) helpLines() []string {
 	}
 	return append(out, "", bold.Render("commands"),
 		"  :deploy [svc]  :rollback <id>  :restart [svc]  :stop [svc]  :new  :rm[!] <svc>  :rename [svc] <new>  :clone [svc] <new>",
-		"  :e[!] <svc>  :logs [svc]  :settings  :set KEY=value  :unset KEY  :domain add|rm <host[/path]>",
+		"  :sh [svc]  :e[!] <svc>  :logs [svc]  :settings  :set KEY=value  :unset KEY  :domain add|rm <host[/path]>",
 		"  :config builds=N|email=…|host=…  :w  :wd  :wq  :q[!]  :qa[!]",
 	)
 }

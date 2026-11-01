@@ -39,6 +39,7 @@ const (
 	Bumboat_ListBranches_FullMethodName    = "/bumboat.v1.Bumboat/ListBranches"
 	Bumboat_SuggestBuild_FullMethodName    = "/bumboat.v1.Bumboat/SuggestBuild"
 	Bumboat_Backup_FullMethodName          = "/bumboat.v1.Bumboat/Backup"
+	Bumboat_Upgrade_FullMethodName         = "/bumboat.v1.Bumboat/Upgrade"
 )
 
 // BumboatClient is the client API for Bumboat service.
@@ -65,6 +66,7 @@ type BumboatClient interface {
 	ListBranches(ctx context.Context, in *Ref, opts ...grpc.CallOption) (*BranchList, error)
 	SuggestBuild(ctx context.Context, in *SuggestBuildRequest, opts ...grpc.CallOption) (*SuggestBuildReply, error)
 	Backup(ctx context.Context, in *BackupRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[BackupChunk], error)
+	Upgrade(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*UpgradeReply, error)
 }
 
 type bumboatClient struct {
@@ -302,6 +304,16 @@ func (c *bumboatClient) Backup(ctx context.Context, in *BackupRequest, opts ...g
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Bumboat_BackupClient = grpc.ServerStreamingClient[BackupChunk]
 
+func (c *bumboatClient) Upgrade(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*UpgradeReply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpgradeReply)
+	err := c.cc.Invoke(ctx, Bumboat_Upgrade_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // BumboatServer is the server API for Bumboat service.
 // All implementations must embed UnimplementedBumboatServer
 // for forward compatibility.
@@ -326,6 +338,7 @@ type BumboatServer interface {
 	ListBranches(context.Context, *Ref) (*BranchList, error)
 	SuggestBuild(context.Context, *SuggestBuildRequest) (*SuggestBuildReply, error)
 	Backup(*BackupRequest, grpc.ServerStreamingServer[BackupChunk]) error
+	Upgrade(context.Context, *Empty) (*UpgradeReply, error)
 	mustEmbedUnimplementedBumboatServer()
 }
 
@@ -395,6 +408,9 @@ func (UnimplementedBumboatServer) SuggestBuild(context.Context, *SuggestBuildReq
 }
 func (UnimplementedBumboatServer) Backup(*BackupRequest, grpc.ServerStreamingServer[BackupChunk]) error {
 	return status.Error(codes.Unimplemented, "method Backup not implemented")
+}
+func (UnimplementedBumboatServer) Upgrade(context.Context, *Empty) (*UpgradeReply, error) {
+	return nil, status.Error(codes.Unimplemented, "method Upgrade not implemented")
 }
 func (UnimplementedBumboatServer) mustEmbedUnimplementedBumboatServer() {}
 func (UnimplementedBumboatServer) testEmbeddedByValue()                 {}
@@ -756,6 +772,24 @@ func _Bumboat_Backup_Handler(srv interface{}, stream grpc.ServerStream) error {
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Bumboat_BackupServer = grpc.ServerStreamingServer[BackupChunk]
 
+func _Bumboat_Upgrade_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BumboatServer).Upgrade(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Bumboat_Upgrade_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BumboatServer).Upgrade(ctx, req.(*Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Bumboat_ServiceDesc is the grpc.ServiceDesc for Bumboat service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -830,6 +864,10 @@ var Bumboat_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SuggestBuild",
 			Handler:    _Bumboat_SuggestBuild_Handler,
+		},
+		{
+			MethodName: "Upgrade",
+			Handler:    _Bumboat_Upgrade_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

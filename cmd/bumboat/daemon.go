@@ -439,6 +439,19 @@ func (d *daemon) DeleteService(ctx context.Context, ref *api.Ref) (*api.Empty, e
 	return &api.Empty{}, nil
 }
 
+// Upgrade installs the latest release and, after replying, exits for systemd to start it.
+func (d *daemon) Upgrade(context.Context, *api.Empty) (*api.UpgradeReply, error) {
+	tag, installed, err := installRelease()
+	if err != nil {
+		return nil, fail(err)
+	}
+	if installed {
+		log.Printf("installed %s, restarting", tag)
+		time.AfterFunc(time.Second, func() { syscall.Kill(os.Getpid(), syscall.SIGTERM) })
+	}
+	return &api.UpgradeReply{Version: tag, Installed: installed}, nil
+}
+
 func (d *daemon) Backup(req *api.BackupRequest, stream api.Bumboat_BackupServer) error {
 	w := bufio.NewWriterSize(chunkWriter{stream}, 64<<10)
 	var volumes func(*tar.Writer) error

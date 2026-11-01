@@ -46,7 +46,7 @@ const usage = `usage:
 func main() {
 	args := append(os.Args[1:], "")
 	var err error
-	if (args[0] == "upgrade" || args[0] == "restore") && os.Geteuid() != 0 {
+	if args[0] == "restore" && os.Geteuid() != 0 {
 		fmt.Fprintf(os.Stderr, "bumboat: %s needs root, run it as root (ssh root@<server> bumboat %s)\n", args[0], args[0])
 		os.Exit(1)
 	}
@@ -464,22 +464,47 @@ func writeBackup(w io.Writer, dir, key string, extra func(*tar.Writer) error) er
 	return gz.Close()
 }
 
+// upgrade asks the daemon to install the latest release, so it works without root.
+// As root it installs it directly when the daemon is down or too old to do it.
 func upgrade() error {
+	reply, err := dial().Upgrade(context.Background(), &api.Empty{})
+	if c := status.Code(err); (c == codes.Unimplemented || c == codes.Unavailable) && os.Geteuid() == 0 {
+		reply = &api.UpgradeReply{}
+		reply.Version, reply.Installed, err = installRelease()
+		if err == nil && reply.Installed {
+			fmt.Printf("installed %s, restarting the daemon\n", reply.Version)
+			return systemctl("restart")
+		}
+	} else if c == codes.Unimplemented {
+		return errors.New("this daemon is too old to upgrade itself, run it as root once: ssh root@<server> bumboat upgrade")
+	}
+	if err != nil {
+		return err
+	}
+	if !reply.Installed {
+		fmt.Println("already on", reply.Version)
+		return nil
+	}
+	fmt.Printf("installed %s, the daemon restarts in a moment\n", reply.Version)
+	return nil
+}
+
+// installRelease replaces this binary with the latest release, checked against its checksum.
+func installRelease() (tag string, installed bool, err error) {
 	var release struct {
 		TagName string `json:"tag_name"`
 	}
 	res, err := http.Get("https://api.github.com/repos/9elt/bumboat/releases/latest")
 	if err != nil {
-		return err
+		return "", false, err
 	}
 	err = json.NewDecoder(res.Body).Decode(&release)
 	res.Body.Close()
 	if err != nil || release.TagName == "" {
-		return fmt.Errorf("no release found (%s)", res.Status)
+		return "", false, fmt.Errorf("no release found (%s)", res.Status)
 	}
 	if release.TagName == version {
-		fmt.Println("already on", version)
-		return nil
+		return version, false, nil
 	}
 	base := "https://github.com/9elt/bumboat/releases/download/" + release.TagName + "/"
 	asset := "bumboat-linux-" + runtime.GOARCH
@@ -496,28 +521,25 @@ func upgrade() error {
 	}
 	sums, err := get("checksums.txt")
 	if err != nil {
-		return err
+		return "", false, err
 	}
 	bin, err := get(asset)
 	if err != nil {
-		return err
+		return "", false, err
 	}
 	sum := sha256.Sum256(bin)
 	if !strings.Contains(string(sums), hex.EncodeToString(sum[:])+"  "+asset) {
-		return fmt.Errorf("%s: checksum mismatch", asset)
+		return "", false, fmt.Errorf("%s: checksum mismatch", asset)
 	}
 	exe, err := os.Executable()
 	if err != nil {
-		return err
+		return "", false, err
 	}
 	if err := os.WriteFile(exe+".new", bin, 0o755); err != nil {
-		return err
+		return "", false, err
 	}
 	if err := os.Rename(exe+".new", exe); err != nil {
-		return err
+		return "", false, err
 	}
-	fmt.Printf("installed %s, restarting the daemon\n", release.TagName)
-	cmd := exec.Command("systemctl", "restart", "bumboat")
-	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
-	return cmd.Run()
+	return release.TagName, true, nil
 }

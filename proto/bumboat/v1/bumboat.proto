@@ -28,6 +28,7 @@ service Bumboat {
   rpc SuggestBuild(SuggestBuildRequest) returns (SuggestBuildReply);
 
   rpc Backup(BackupRequest) returns (stream BackupChunk);
+  rpc Upgrade(Empty) returns (UpgradeReply);
 }
 
 message Empty {}
@@ -63,6 +64,11 @@ message BackupRequest {
 message BackupChunk {
   bytes data = 1;
   string warning = 2;
+}
+
+message UpgradeReply {
+  string version = 1;
+  bool installed = 2;
 }
 
 message RenameRequest {

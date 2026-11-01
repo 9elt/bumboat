@@ -21,6 +21,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/9elt/bumboat/api"
@@ -164,6 +165,11 @@ func (d *daemon) deploy(ctx context.Context, sv *api.Service, dep *api.Deploymen
 	for _, e := range sv.Env {
 		cfg.Env = append(cfg.Env, e.Key+"="+e.Value)
 		env[e.Key] = e.Value
+	}
+	// apps built for Railway, Heroku or Render listen on $PORT
+	if _, ok := env["PORT"]; !ok && sv.Port > 0 {
+		env["PORT"] = strconv.Itoa(int(sv.Port))
+		cfg.Env = append(cfg.Env, "PORT="+env["PORT"])
 	}
 	// the command is split on spaces, $VAR comes from the service's env so secrets stay out of it
 	for _, arg := range strings.Fields(sv.Command) {
@@ -413,14 +419,29 @@ func (d *daemon) health(ctx context.Context, sv *api.Service, id string, w io.Wr
 	defer cancel()
 	since := time.Now()
 	client := &http.Client{Timeout: 2 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+
+	// the container's output goes to the build log until it is healthy
+	var mu sync.Mutex
+	say := func(format string, args ...any) {
+		mu.Lock()
+		defer mu.Unlock()
+		fmt.Fprintf(w, format, args...)
+	}
+	logsCtx, stopLogs := context.WithCancel(ctx)
+	logsDone := make(chan struct{})
+	go func() {
+		defer close(logsDone)
+		d.dk.logs(logsCtx, id, true, -1, func(l string) error { say("%s\n", l); return nil })
+	}()
+	defer func() { stopLogs(); <-logsDone }()
+
 	for {
 		ip, running, err := d.dk.inspect(ctx, id)
 		if err != nil {
 			return "", err
 		}
 		if !running {
-			fmt.Fprintln(w, "container exited, last output:")
-			d.dk.logs(context.Background(), id, false, 30, func(l string) error { _, err := fmt.Fprintln(w, l); return err })
+			<-logsDone
 			return "", errors.New("container exited before becoming healthy")
 		}
 		addr := net.JoinHostPort(ip, strconv.Itoa(int(sv.Port)))
@@ -434,20 +455,20 @@ func (d *daemon) health(ctx context.Context, sv *api.Service, id string, w io.Wr
 			if res, err := client.Get("http://" + addr + sv.HealthPath); err == nil {
 				res.Body.Close()
 				if res.StatusCode < 500 {
-					fmt.Fprintf(w, "GET %s → %d\n", sv.HealthPath, res.StatusCode)
+					say("GET %s → %d\n", sv.HealthPath, res.StatusCode)
 					return ip, nil
 				}
 			}
 		default:
 			if c, err := net.DialTimeout("tcp", addr, time.Second); err == nil {
 				c.Close()
-				fmt.Fprintf(w, "port %d is accepting connections\n", sv.Port)
+				say("port %d is accepting connections\n", sv.Port)
 				return ip, nil
 			}
 		}
 		select {
 		case <-ctx.Done():
-			return "", fmt.Errorf("not healthy after 60s on port %d", sv.Port)
+			return "", fmt.Errorf("not healthy after 60s on port %d: the app must listen on it ($PORT) and on 0.0.0.0, not localhost", sv.Port)
 		case <-time.After(500 * time.Millisecond):
 		}
 	}

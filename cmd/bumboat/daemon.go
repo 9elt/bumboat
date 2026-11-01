@@ -1,14 +1,18 @@
 package main
 
 import (
+	"archive/tar"
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
 	"os/signal"
 	"os/user"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -433,6 +437,104 @@ func (d *daemon) DeleteService(ctx context.Context, ref *api.Ref) (*api.Empty, e
 	d.routes()
 	d.changed()
 	return &api.Empty{}, nil
+}
+
+func (d *daemon) Backup(req *api.BackupRequest, stream api.Bumboat_BackupServer) error {
+	w := bufio.NewWriterSize(chunkWriter{stream}, 64<<10)
+	var volumes func(*tar.Writer) error
+	if !req.SkipVolumes {
+		volumes = func(tw *tar.Writer) error {
+			return d.backupVolumes(stream.Context(), tw, func(format string, args ...any) {
+				stream.Send(&api.BackupChunk{Warning: fmt.Sprintf(format, args...)})
+			})
+		}
+	}
+	if err := writeBackup(w, d.dir, env("BUMBOAT_KEY", "/etc/bumboat/master.key"), volumes); err != nil {
+		return fail(err)
+	}
+	return w.Flush()
+}
+
+// backupVolumes adds every volume as volumes/<docker name>/..., reading it from the
+// service's container, paused meanwhile so the copy is consistent.
+func (d *daemon) backupVolumes(ctx context.Context, tw *tar.Writer, warn func(string, ...any)) error {
+	services, _, err := d.st.services("")
+	if err != nil {
+		return err
+	}
+	for _, sv := range services {
+		if len(sv.Volumes) == 0 {
+			continue
+		}
+		d.mu.Lock()
+		l := d.live[sv.Name]
+		d.mu.Unlock()
+		if l == nil {
+			warn("%s has no container, its volumes are not in the backup", sv.Name)
+			continue
+		}
+		if err := d.backupContainerVolumes(ctx, tw, l.id, sv.Volumes); err != nil {
+			return fmt.Errorf("%s: %w", sv.Name, err)
+		}
+	}
+	return nil
+}
+
+func (d *daemon) backupContainerVolumes(ctx context.Context, tw *tar.Writer, id string, volumes []*api.Volume) error {
+	if _, running, _ := d.dk.inspect(ctx, id); running {
+		if err := d.dk.pause(ctx, id); err != nil {
+			return err
+		}
+		defer d.dk.unpause(context.Background(), id)
+	}
+	for _, v := range volumes {
+		rc, err := d.dk.archive(ctx, id, v.Path)
+		if err != nil {
+			return err
+		}
+		err = copyVolume(tw, tar.NewReader(rc), "volumes/"+v.Docker)
+		rc.Close()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// copyVolume moves the entries of a docker archive under prefix, dropping the archived
+// directory's own name.
+func copyVolume(tw *tar.Writer, tr *tar.Reader, prefix string) error {
+	rename := func(name string) string {
+		_, rest, _ := strings.Cut(name, "/")
+		return path.Join(prefix, rest)
+	}
+	for {
+		h, err := tr.Next()
+		if err == io.EOF {
+			return nil
+		} else if err != nil {
+			return err
+		}
+		h.Name = rename(h.Name)
+		if h.Typeflag == tar.TypeDir {
+			h.Name += "/"
+		}
+		if h.Typeflag == tar.TypeLink {
+			h.Linkname = rename(h.Linkname)
+		}
+		if err := tw.WriteHeader(h); err != nil {
+			return err
+		}
+		if _, err := io.Copy(tw, tr); err != nil {
+			return err
+		}
+	}
+}
+
+type chunkWriter struct{ stream api.Bumboat_BackupServer }
+
+func (c chunkWriter) Write(p []byte) (int, error) {
+	return len(p), c.stream.Send(&api.BackupChunk{Data: p})
 }
 
 func (d *daemon) RenameService(ctx context.Context, req *api.RenameRequest) (*api.Service, error) {

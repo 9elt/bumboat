@@ -168,6 +168,32 @@ func (d *docker) remove(ctx context.Context, id string) error {
 	return err
 }
 
+func (d *docker) pause(ctx context.Context, id string) error {
+	return d.do(ctx, "POST", "/containers/"+id+"/pause", nil, nil)
+}
+
+func (d *docker) unpause(ctx context.Context, id string) error {
+	return d.do(ctx, "POST", "/containers/"+id+"/unpause", nil, nil)
+}
+
+// archive is a tar of path inside the container, its entries start with the path's last element.
+func (d *docker) archive(ctx context.Context, id, path string) (io.ReadCloser, error) {
+	return d.stream(ctx, "GET", "/containers/"+id+"/archive?path="+url.QueryEscape(path), nil)
+}
+
+// volume creates the volume if needed and returns where its data lives on the host.
+func (d *docker) volume(ctx context.Context, name string) (string, error) {
+	var res struct{ Mountpoint string }
+	err := d.do(ctx, "POST", "/volumes/create", map[string]string{"Name": name}, &res)
+	return res.Mountpoint, err
+}
+
+func (d *docker) containersUsing(ctx context.Context, volume string) ([]containerSummary, error) {
+	var list []containerSummary
+	err := d.do(ctx, "GET", "/containers/json?all=1&filters="+url.QueryEscape(`{"volume":["`+volume+`"]}`), nil, &list)
+	return list, err
+}
+
 func (d *docker) removeVolume(ctx context.Context, name string) error {
 	err := d.do(ctx, "DELETE", "/volumes/"+name, nil, nil)
 	if isNotFound(err) {

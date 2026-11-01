@@ -36,10 +36,40 @@ Then run `bumboat`.
 - `?` shows the keys. Edits are drafts until `:w`, and `<space>d` deploys.
 
 ```
-bumboat ls | deploy <svc> | logs <svc> [-f] [--build] | backup | upgrade
+bumboat ls | deploy <svc> | logs <svc> [-f] [--build] | backup | restore | upgrade
 ```
 
 State lives in `/var/lib/bumboat` and `/etc/bumboat/master.key`.
+
+## Backup
+
+A backup holds the database, the master key, the certificates and every volume. Each service with volumes is paused while they are copied.
+
+On the server, write `bumboat-backup-<date>.tar.gz` in the current directory
+
+```
+bumboat backup
+```
+
+From your machine, stream it over ssh without saving it on the server
+
+```
+ssh <server> bumboat backup - > bumboat-backup.tar.gz
+```
+
+Restore it on the server as root, it stops the daemon while it writes and starts it again
+
+```
+bumboat restore bumboat-backup.tar.gz
+```
+
+From your machine
+
+```
+ssh root@<server> bumboat restore - < bumboat-backup.tar.gz
+```
+
+The master key decrypts every secret, so keep backups private.
 
 ## Develop
 

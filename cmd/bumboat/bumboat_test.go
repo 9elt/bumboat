@@ -1,6 +1,8 @@
 package main
 
 import (
+	"archive/tar"
+	"bytes"
 	"context"
 	"crypto"
 	"crypto/hmac"
@@ -587,5 +589,73 @@ func TestTemplates(t *testing.T) {
 	}
 	if p := password(); len(p) != 24 || strings.ContainsAny(p, " $") {
 		t.Fatalf("password %q", p)
+	}
+}
+
+func TestVolumeBackupRoundTrip(t *testing.T) {
+	// shaped like docker's archive of /var/lib/data: entries start with "data/"
+	var inner bytes.Buffer
+	tw := tar.NewWriter(&inner)
+	uid, gid := os.Getuid(), os.Getgid()
+	for _, e := range []struct {
+		h    tar.Header
+		body string
+	}{
+		{tar.Header{Name: "data/", Typeflag: tar.TypeDir, Mode: 0o750}, ""},
+		{tar.Header{Name: "data/sub/", Typeflag: tar.TypeDir, Mode: 0o700}, ""},
+		{tar.Header{Name: "data/sub/a.txt", Typeflag: tar.TypeReg, Mode: 0o640}, "hello"},
+		{tar.Header{Name: "data/link", Typeflag: tar.TypeSymlink, Linkname: "sub/a.txt"}, ""},
+		{tar.Header{Name: "data/hard", Typeflag: tar.TypeLink, Linkname: "data/sub/a.txt"}, ""},
+	} {
+		e.h.Uid, e.h.Gid, e.h.Size, e.h.ModTime = uid, gid, int64(len(e.body)), time.Unix(1700000000, 0)
+		tw.WriteHeader(&e.h)
+		tw.Write([]byte(e.body))
+	}
+	tw.Close()
+
+	var outer bytes.Buffer
+	ow := tar.NewWriter(&outer)
+	if err := copyVolume(ow, tar.NewReader(&inner), "volumes/bumboat-db-data"); err != nil {
+		t.Fatal(err)
+	}
+	ow.Close()
+
+	mount := t.TempDir()
+	tr := tar.NewReader(&outer)
+	for {
+		h, err := tr.Next()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			t.Fatal(err)
+		}
+		inside := strings.TrimPrefix(h.Name, "volumes/bumboat-db-data/")
+		if inside == h.Name {
+			t.Fatalf("entry %q not under the volume prefix", h.Name)
+		}
+		target, err := safeJoin(mount, inside)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if h.Typeflag == tar.TypeLink {
+			h.Linkname, _ = safeJoin(mount, strings.TrimPrefix(h.Linkname, "volumes/bumboat-db-data/"))
+		}
+		if err := extract(tr, h, target); err != nil {
+			t.Fatalf("%s: %v", h.Name, err)
+		}
+	}
+	for path, want := range map[string]string{"sub/a.txt": "hello", "link": "hello", "hard": "hello"} {
+		if b, err := os.ReadFile(filepath.Join(mount, path)); err != nil || string(b) != want {
+			t.Errorf("%s: %q %v", path, b, err)
+		}
+	}
+	if info, _ := os.Stat(filepath.Join(mount, "sub/a.txt")); info.Mode().Perm() != 0o640 || !info.ModTime().Equal(time.Unix(1700000000, 0)) {
+		t.Errorf("a.txt mode %v time %v", info.Mode(), info.ModTime())
+	}
+	if info, _ := os.Stat(filepath.Join(mount, "sub")); info.Mode().Perm() != 0o700 {
+		t.Errorf("sub mode %v", info.Mode())
+	}
+	if _, err := safeJoin(mount, "../../etc/passwd"); err == nil {
+		t.Error("a path escaping the volume was accepted")
 	}
 }

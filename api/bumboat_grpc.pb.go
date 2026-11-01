@@ -38,6 +38,7 @@ const (
 	Bumboat_ListRepos_FullMethodName       = "/bumboat.v1.Bumboat/ListRepos"
 	Bumboat_ListBranches_FullMethodName    = "/bumboat.v1.Bumboat/ListBranches"
 	Bumboat_SuggestBuild_FullMethodName    = "/bumboat.v1.Bumboat/SuggestBuild"
+	Bumboat_Backup_FullMethodName          = "/bumboat.v1.Bumboat/Backup"
 )
 
 // BumboatClient is the client API for Bumboat service.
@@ -63,6 +64,7 @@ type BumboatClient interface {
 	ListRepos(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*RepoList, error)
 	ListBranches(ctx context.Context, in *Ref, opts ...grpc.CallOption) (*BranchList, error)
 	SuggestBuild(ctx context.Context, in *SuggestBuildRequest, opts ...grpc.CallOption) (*SuggestBuildReply, error)
+	Backup(ctx context.Context, in *BackupRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[BackupChunk], error)
 }
 
 type bumboatClient struct {
@@ -281,6 +283,25 @@ func (c *bumboatClient) SuggestBuild(ctx context.Context, in *SuggestBuildReques
 	return out, nil
 }
 
+func (c *bumboatClient) Backup(ctx context.Context, in *BackupRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[BackupChunk], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &Bumboat_ServiceDesc.Streams[2], Bumboat_Backup_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[BackupRequest, BackupChunk]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Bumboat_BackupClient = grpc.ServerStreamingClient[BackupChunk]
+
 // BumboatServer is the server API for Bumboat service.
 // All implementations must embed UnimplementedBumboatServer
 // for forward compatibility.
@@ -304,6 +325,7 @@ type BumboatServer interface {
 	ListRepos(context.Context, *Empty) (*RepoList, error)
 	ListBranches(context.Context, *Ref) (*BranchList, error)
 	SuggestBuild(context.Context, *SuggestBuildRequest) (*SuggestBuildReply, error)
+	Backup(*BackupRequest, grpc.ServerStreamingServer[BackupChunk]) error
 	mustEmbedUnimplementedBumboatServer()
 }
 
@@ -370,6 +392,9 @@ func (UnimplementedBumboatServer) ListBranches(context.Context, *Ref) (*BranchLi
 }
 func (UnimplementedBumboatServer) SuggestBuild(context.Context, *SuggestBuildRequest) (*SuggestBuildReply, error) {
 	return nil, status.Error(codes.Unimplemented, "method SuggestBuild not implemented")
+}
+func (UnimplementedBumboatServer) Backup(*BackupRequest, grpc.ServerStreamingServer[BackupChunk]) error {
+	return status.Error(codes.Unimplemented, "method Backup not implemented")
 }
 func (UnimplementedBumboatServer) mustEmbedUnimplementedBumboatServer() {}
 func (UnimplementedBumboatServer) testEmbeddedByValue()                 {}
@@ -720,6 +745,17 @@ func _Bumboat_SuggestBuild_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Bumboat_Backup_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(BackupRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(BumboatServer).Backup(m, &grpc.GenericServerStream[BackupRequest, BackupChunk]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Bumboat_BackupServer = grpc.ServerStreamingServer[BackupChunk]
+
 // Bumboat_ServiceDesc is the grpc.ServiceDesc for Bumboat service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -805,6 +841,11 @@ var Bumboat_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "StreamLogs",
 			Handler:       _Bumboat_StreamLogs_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "Backup",
+			Handler:       _Bumboat_Backup_Handler,
 			ServerStreams: true,
 		},
 	},

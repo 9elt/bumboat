@@ -26,6 +26,8 @@ service Bumboat {
   rpc ListRepos(Empty) returns (RepoList);
   rpc ListBranches(Ref) returns (BranchList);
   rpc SuggestBuild(SuggestBuildRequest) returns (SuggestBuildReply);
+
+  rpc Backup(BackupRequest) returns (stream BackupChunk);
 }
 
 message Empty {}
@@ -52,6 +54,15 @@ message Volume {
   string name = 1;
   string path = 2;
   string docker = 3;
+}
+
+message BackupRequest {
+  bool skip_volumes = 1;
+}
+
+message BackupChunk {
+  bytes data = 1;
+  string warning = 2;
 }
 
 message RenameRequest {

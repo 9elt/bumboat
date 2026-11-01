@@ -2,6 +2,7 @@ package main
 
 import (
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
@@ -36,13 +37,19 @@ const usage = `usage:
   bumboat ls                 list services
   bumboat deploy <service>   deploy and stream the build log
   bumboat logs <service> [-f] [--build]
-  bumboat backup [file]      write a backup tarball (restore: tar -xzf file -C /)
+  bumboat backup [--no-volumes] [file|-]
+                             write a backup, - for stdout
+  bumboat restore <file|->   put a backup back as root, - for stdin
   bumboat upgrade            install the latest release
   bumboat version`
 
 func main() {
 	args := append(os.Args[1:], "")
 	var err error
+	if (args[0] == "upgrade" || args[0] == "restore") && os.Geteuid() != 0 {
+		fmt.Fprintf(os.Stderr, "bumboat: %s needs root, run it as root (ssh root@<server> bumboat %s)\n", args[0], args[0])
+		os.Exit(1)
+	}
 	switch args[0] {
 	case "":
 		err = runTUI()
@@ -55,7 +62,9 @@ func main() {
 	case "logs":
 		err = cliLogs(args[1:])
 	case "backup":
-		err = backup(args[1])
+		err = backup(args[1 : len(args)-1])
+	case "restore":
+		err = restore(args[1])
 	case "upgrade":
 		err = upgrade()
 	case "version":
@@ -172,11 +181,230 @@ func printLogs(c api.BumboatClient, req *api.LogsRequest, w io.Writer) error {
 	}
 }
 
-func backup(file string) error {
-	dir, key := env("BUMBOAT_DIR", "/var/lib/bumboat"), env("BUMBOAT_KEY", "/etc/bumboat/master.key")
+func backup(args []string) error {
+	req, file := &api.BackupRequest{}, ""
+	for _, a := range args {
+		if a == "--no-volumes" {
+			req.SkipVolumes = true
+		} else {
+			file = a
+		}
+	}
 	if file == "" {
 		file = "bumboat-backup-" + time.Now().Format("2006-01-02") + ".tar.gz"
 	}
+	out := os.Stdout
+	if file == "-" {
+		if info, _ := out.Stat(); info != nil && info.Mode()&os.ModeCharDevice != 0 {
+			return errors.New("backup - writes to stdout: redirect it, e.g. ssh <server> bumboat backup - > backup.tar.gz")
+		}
+	}
+	stream, err := dial().Backup(context.Background(), req)
+	if err != nil {
+		return err
+	}
+	if file != "-" {
+		if out, err = os.OpenFile(file, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600); err != nil {
+			return err
+		}
+	}
+	for err == nil {
+		var chunk *api.BackupChunk
+		if chunk, err = stream.Recv(); err == nil && chunk.Warning != "" {
+			fmt.Fprintln(os.Stderr, "bumboat: warning:", chunk.Warning)
+		} else if err == nil {
+			_, err = out.Write(chunk.Data)
+		}
+	}
+	if err == io.EOF && file != "-" {
+		err = out.Close()
+	} else if err == io.EOF {
+		err = nil
+	}
+	if err != nil && file != "-" {
+		out.Close()
+		os.Remove(file)
+	}
+	if err != nil || file == "-" {
+		return err
+	}
+	fmt.Printf("wrote %s\nrestore it as root: bumboat restore %s\n", file, file)
+	return nil
+}
+
+// restore puts a backup back: the database, the key, the certificates and the volumes.
+// It stops the daemon while it writes and starts it again after.
+func restore(file string) error {
+	if file == "" {
+		return errors.New("usage: bumboat restore <file|->")
+	}
+	f := os.Stdin
+	if file != "-" {
+		var err error
+		if f, err = os.Open(file); err != nil {
+			return err
+		}
+		defer f.Close()
+	} else if info, _ := f.Stat(); info != nil && info.Mode()&os.ModeCharDevice != 0 {
+		return errors.New("restore - reads stdin: redirect it, e.g. ssh root@<server> bumboat restore - < backup.tar.gz")
+	}
+	// reading the header first fails on a wrong file before the daemon goes down
+	gz, err := gzip.NewReader(f)
+	if err != nil {
+		return fmt.Errorf("not a bumboat backup: %w", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	_, err = dial().ListServices(ctx, &api.Empty{})
+	cancel()
+	if err == nil {
+		fmt.Println("stopping the daemon")
+		if err := systemctl("stop"); err != nil {
+			return fmt.Errorf("stop the daemon first: %w", err)
+		}
+		defer func() {
+			fmt.Println("starting the daemon")
+			if err := systemctl("start"); err != nil {
+				fmt.Fprintln(os.Stderr, "bumboat: start the daemon:", err)
+			}
+		}()
+	}
+	dir := env("BUMBOAT_DIR", "/var/lib/bumboat")
+	os.Remove(filepath.Join(dir, "bumboat.db-wal"))
+	os.Remove(filepath.Join(dir, "bumboat.db-shm"))
+
+	dk, ctx := newDocker(), context.Background()
+	mounts := map[string]string{}
+	tr := tar.NewReader(gz)
+	for {
+		h, err := tr.Next()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return err
+		}
+		// entries are files under / or, for volumes, volumes/<docker name>/<path in the volume>
+		place := func(name string) (string, error) {
+			rest, ok := strings.CutPrefix(name, "volumes/")
+			if !ok {
+				return safeJoin("/", name)
+			}
+			volume, inside, _ := strings.Cut(rest, "/")
+			if mounts[volume] == "" {
+				m, err := emptyVolume(ctx, dk, volume)
+				if err != nil {
+					return "", fmt.Errorf("volume %s: %w", volume, err)
+				}
+				mounts[volume] = m
+				fmt.Println("restoring volume", volume)
+			}
+			return safeJoin(mounts[volume], inside)
+		}
+		target, err := place(h.Name)
+		if err != nil {
+			return err
+		}
+		if h.Typeflag == tar.TypeLink {
+			if h.Linkname, err = place(h.Linkname); err != nil {
+				return err
+			}
+		}
+		if err := extract(tr, h, target); err != nil {
+			return err
+		}
+	}
+	fmt.Println("restored")
+	return nil
+}
+
+func systemctl(action string) error {
+	out, err := exec.Command("systemctl", action, "bumboat").CombinedOutput()
+	if out = bytes.TrimSpace(out); err != nil && len(out) > 0 {
+		return errors.New(string(out))
+	}
+	return err
+}
+
+// emptyVolume stops the containers using the volume and empties it.
+func emptyVolume(ctx context.Context, dk *docker, name string) (string, error) {
+	users, err := dk.containersUsing(ctx, name)
+	if err != nil {
+		return "", err
+	}
+	for _, c := range users {
+		if err := dk.stop(ctx, c.Id); err != nil {
+			return "", err
+		}
+	}
+	mount, err := dk.volume(ctx, name)
+	if err != nil {
+		return "", err
+	}
+	entries, err := os.ReadDir(mount)
+	if err != nil {
+		return "", err
+	}
+	for _, e := range entries {
+		if err := os.RemoveAll(filepath.Join(mount, e.Name())); err != nil {
+			return "", err
+		}
+	}
+	return mount, nil
+}
+
+func safeJoin(root, name string) (string, error) {
+	name = strings.TrimSuffix(name, "/")
+	if name != "" && !filepath.IsLocal(name) {
+		return "", fmt.Errorf("unsafe path in backup: %s", name)
+	}
+	return filepath.Join(root, name), nil
+}
+
+// extract writes one tar entry at target, keeping its mode and owner.
+func extract(tr *tar.Reader, h *tar.Header, target string) error {
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		return err
+	}
+	switch h.Typeflag {
+	case tar.TypeDir:
+		if err := os.MkdirAll(target, 0o700); err != nil {
+			return err
+		}
+	case tar.TypeReg:
+		out, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+		if err != nil {
+			return err
+		}
+		_, err = io.Copy(out, tr)
+		if cerr := out.Close(); err == nil {
+			err = cerr
+		}
+		if err != nil {
+			return err
+		}
+	case tar.TypeSymlink:
+		os.Remove(target)
+		if err := os.Symlink(h.Linkname, target); err != nil {
+			return err
+		}
+		return os.Lchown(target, h.Uid, h.Gid)
+	case tar.TypeLink:
+		os.Remove(target)
+		return os.Link(h.Linkname, target)
+	default:
+		return nil
+	}
+	if err := os.Chown(target, h.Uid, h.Gid); err != nil {
+		return err
+	}
+	if err := os.Chmod(target, h.FileInfo().Mode()&(os.ModePerm|os.ModeSetuid|os.ModeSetgid|os.ModeSticky)); err != nil {
+		return err
+	}
+	return os.Chtimes(target, h.ModTime, h.ModTime)
+}
+
+// writeBackup writes the database, the master key and the certificates as a .tar.gz,
+// then whatever extra adds (the volumes).
+func writeBackup(w io.Writer, dir, key string, extra func(*tar.Writer) error) error {
 	snapshot := filepath.Join(dir, "backup.db")
 	os.Remove(snapshot)
 	defer os.Remove(snapshot)
@@ -190,12 +418,7 @@ func backup(file string) error {
 		return fmt.Errorf("snapshot: %w", err)
 	}
 
-	out, err := os.OpenFile(file, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-	gz := gzip.NewWriter(out)
+	gz := gzip.NewWriter(w)
 	tw := tar.NewWriter(gz)
 	add := func(src, name string) error {
 		info, err := os.Stat(src)
@@ -230,14 +453,15 @@ func backup(file string) error {
 	if err != nil {
 		return err
 	}
+	if extra != nil {
+		if err := extra(tw); err != nil {
+			return err
+		}
+	}
 	if err := tw.Close(); err != nil {
 		return err
 	}
-	if err := gz.Close(); err != nil {
-		return err
-	}
-	fmt.Printf("wrote %s\nrestore with the daemon stopped: sudo tar -xzf %s -C /\n", file, file)
-	return nil
+	return gz.Close()
 }
 
 func upgrade() error {

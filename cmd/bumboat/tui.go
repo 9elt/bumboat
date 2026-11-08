@@ -655,6 +655,8 @@ func (m *model) action(kind, name string) tea.Cmd {
 		return call(func(ctx context.Context) (*api.Empty, error) { return m.c.Restart(ctx, ref) }, func(*api.Empty) tea.Msg { return infoMsg(name + " restarted") })
 	case "stop":
 		return call(func(ctx context.Context) (*api.Empty, error) { return m.c.Stop(ctx, ref) }, func(*api.Empty) tea.Msg { return infoMsg(name + " stopped") })
+	case "cancel":
+		return call(func(ctx context.Context) (*api.Empty, error) { return m.c.Cancel(ctx, ref) }, func(*api.Empty) tea.Msg { return infoMsg(name + "'s deployment canceled") })
 	}
 	return nil
 }
@@ -1265,7 +1267,7 @@ func (m *model) scroll() {
 	}
 }
 
-var commands = []string{"deploy", "rollback", "restart", "stop", "new", "rm", "rename", "clone", "sh", "e", "logs", "set", "unset", "domain", "config", "settings", "w", "wd", "wq", "q", "qa", "help"}
+var commands = []string{"deploy", "cancel", "rollback", "restart", "stop", "new", "rm", "rename", "clone", "sh", "e", "logs", "set", "unset", "domain", "config", "settings", "w", "wd", "wq", "q", "qa", "help"}
 
 func (m *model) startCommand(prompt string) tea.Cmd {
 	m.mode = command
@@ -1323,7 +1325,7 @@ func (m *model) complete() {
 	if len(words) > 1 {
 		options = nil
 		switch strings.TrimSuffix(words[0], "!") {
-		case "deploy", "restart", "stop", "rm", "rename", "clone", "sh", "e", "logs":
+		case "deploy", "cancel", "restart", "stop", "rm", "rename", "clone", "sh", "e", "logs":
 			for _, sv := range m.list.GetServices() {
 				options = append(options, sv.Name)
 			}
@@ -1413,7 +1415,7 @@ func (m *model) exec(line string) tea.Cmd {
 			return nil
 		}
 		return tea.Quit
-	case "deploy", "restart", "stop":
+	case "deploy", "restart", "stop", "cancel":
 		return m.action(name, target)
 	case "rollback":
 		id, err := strconv.ParseInt(strings.TrimPrefix(arg, "#"), 10, 64)
@@ -1785,7 +1787,7 @@ func stateStyle(state string) lipgloss.Style {
 		return green
 	case "deploying", "queued", "building", "starting":
 		return yellow
-	case "failed":
+	case "failed", "canceled":
 		return red
 	}
 	return dim
@@ -1928,9 +1930,12 @@ func (m *model) hints() [][2]string {
 	case m.screen == "settings":
 		out = [][2]string{{"enter", "edit"}, {"␣g", "connect GitHub"}, {":w", "save"}}
 	case m.active("deployments"):
-		out = [][2]string{{"enter", "build log"}, {"␣R", "roll back"}, {"␣d", "deploy"}}
+		out = [][2]string{{"enter", "build log"}, {"␣R", "roll back"}, {"␣d", "deploy"}, {"␣c", "cancel"}}
 	case m.active("logs"):
 		out = [][2]string{{"b", "build / runtime"}, {"G", "follow"}, {"V", "select"}, {"/", "search"}}
+		if m.base.GetState() == "deploying" {
+			out = append(out, [2]string{"␣c", "cancel"})
+		}
 	case m.active("env"):
 		out = [][2]string{{"enter", "edit"}, {"o", "add"}, {"dd", "delete"}, {"v", "reveal"}, {"b", "build-time"}, {"E", "$EDITOR"}, {":w", "save"}}
 	case m.active("rows"):
@@ -2082,7 +2087,7 @@ func (m *model) helpLines() []string {
 		}
 	}
 	return append(out, "", bold.Render("commands"),
-		"  :deploy [svc]  :rollback <id>  :restart [svc]  :stop [svc]  :new  :rm[!] <svc>  :rename [svc] <new>  :clone [svc] <new>",
+		"  :deploy [svc]  :cancel [svc]  :rollback <id>  :restart [svc]  :stop [svc]  :new  :rm[!] <svc>  :rename [svc] <new>  :clone [svc] <new>",
 		"  :sh [svc]  :e[!] <svc>  :logs [svc]  :settings  :set KEY=value  :unset KEY  :domain add|rm <host[/path]>",
 		"  :config builds=N|email=…|host=…  :w  :wd  :wq  :q[!]  :qa[!]",
 	)

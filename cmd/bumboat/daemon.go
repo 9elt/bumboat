@@ -41,6 +41,7 @@ type daemon struct {
 	live    map[string]*live
 	pending map[string]*api.Deployment
 	running map[string]bool
+	cancels map[string]context.CancelCauseFunc
 	stats   map[string][2]float64
 	hostCPU float64
 	wake    chan struct{}
@@ -63,6 +64,7 @@ func runDaemon() error {
 		live:    map[string]*live{},
 		pending: map[string]*api.Deployment{},
 		running: map[string]bool{},
+		cancels: map[string]context.CancelCauseFunc{},
 		stats:   map[string][2]float64{},
 		wake:    make(chan struct{}, 1),
 		subs:    map[chan *api.ServiceList]bool{},
@@ -707,6 +709,25 @@ func (d *daemon) Stop(ctx context.Context, ref *api.Ref) (*api.Empty, error) {
 	delete(d.stats, ref.Name)
 	d.mu.Unlock()
 	d.routes()
+	d.changed()
+	return &api.Empty{}, nil
+}
+
+func (d *daemon) Cancel(_ context.Context, ref *api.Ref) (*api.Empty, error) {
+	d.mu.Lock()
+	queued, cancel := d.pending[ref.Name], d.cancels[ref.Name]
+	delete(d.pending, ref.Name)
+	d.mu.Unlock()
+	if queued == nil && cancel == nil {
+		return nil, fail(fmt.Errorf("%s has no deployment to cancel", ref.Name))
+	}
+	if queued != nil {
+		queued.Finished = time.Now().Unix()
+		d.setStatus(queued, "canceled")
+	}
+	if cancel != nil {
+		cancel(errCanceled)
+	}
 	d.changed()
 	return &api.Empty{}, nil
 }

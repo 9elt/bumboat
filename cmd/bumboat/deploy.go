@@ -106,8 +106,18 @@ func (d *daemon) run(dep *api.Deployment) {
 		return
 	}
 	defer f.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
-	defer cancel()
+	ctx, cancel := context.WithCancelCause(context.Background())
+	defer cancel(nil)
+	d.mu.Lock()
+	d.cancels[dep.Service] = cancel
+	d.mu.Unlock()
+	defer func() {
+		d.mu.Lock()
+		delete(d.cancels, dep.Service)
+		d.mu.Unlock()
+	}()
+	ctx, stop := context.WithTimeout(ctx, time.Hour)
+	defer stop()
 
 	sv, err := d.st.service(dep.Service)
 	var ghDeployment int64
@@ -116,7 +126,12 @@ func (d *daemon) run(dep *api.Deployment) {
 	}
 	dep.Finished = time.Now().Unix()
 	state, description := "success", fmt.Sprintf("deployed in %ds", dep.Finished-dep.Started)
-	if err != nil {
+	if errors.Is(context.Cause(ctx), errCanceled) && err != nil {
+		fmt.Fprintln(f, "\ncanceled")
+		dep.Error = "canceled"
+		d.setStatus(dep, "canceled")
+		state, description = "error", "canceled"
+	} else if err != nil {
 		fmt.Fprintf(f, "\nerror: %v\n", err)
 		dep.Error = err.Error()
 		d.setStatus(dep, "failed")
@@ -129,9 +144,14 @@ func (d *daemon) run(dep *api.Deployment) {
 		if len(sv.Domains) > 0 {
 			envURL = "https://" + sv.Domains[0].Host + sv.Domains[0].Path
 		}
+		// the deployment's own context may be canceled or timed out by now
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
 		d.gh.report(ctx, sv.Repo, dep.Sha, sv.Name, state, description, envURL, &ghDeployment)
 	}
 }
+
+var errCanceled = errors.New("canceled")
 
 func (d *daemon) deploy(ctx context.Context, sv *api.Service, dep *api.Deployment, w io.Writer, ghDeployment *int64) error {
 	d.setStatus(dep, "building")
@@ -435,9 +455,12 @@ func (d *daemon) health(ctx context.Context, sv *api.Service, id string, w io.Wr
 	}()
 	defer func() { stopLogs(); <-logsDone }()
 
+	timeout := fmt.Errorf("not healthy after 60s on port %d: the app must listen on it ($PORT) and on 0.0.0.0, not localhost", sv.Port)
 	for {
 		ip, running, err := d.dk.inspect(ctx, id)
-		if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			return "", timeout
+		} else if err != nil {
 			return "", err
 		}
 		if !running {
@@ -468,7 +491,7 @@ func (d *daemon) health(ctx context.Context, sv *api.Service, id string, w io.Wr
 		}
 		select {
 		case <-ctx.Done():
-			return "", fmt.Errorf("not healthy after 60s on port %d: the app must listen on it ($PORT) and on 0.0.0.0, not localhost", sv.Port)
+			return "", timeout
 		case <-time.After(500 * time.Millisecond):
 		}
 	}
@@ -513,7 +536,7 @@ func (d *daemon) tailBuildLog(ctx context.Context, id int64, follow bool, send f
 		if err != nil {
 			return fmt.Errorf("no deployment %d", id)
 		}
-		done := dep.Finished != 0 || dep.Status == "failed" || dep.Status == "superseded"
+		done := dep.Finished != 0 || dep.Status == "failed" || dep.Status == "superseded" || dep.Status == "canceled"
 		if r == nil {
 			if f, err := os.Open(path); err == nil {
 				defer f.Close()

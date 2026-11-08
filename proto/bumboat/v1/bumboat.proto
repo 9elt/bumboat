@@ -17,6 +17,8 @@ service Bumboat {
   rpc Rollback(Ref) returns (Deployment);
   rpc Restart(Ref) returns (Empty);
   rpc Stop(Ref) returns (Empty);
+  // Cancel stops the service's running deployment and drops its queued one.
+  rpc Cancel(Ref) returns (Empty);
   rpc ListDeployments(Ref) returns (DeploymentList);
   rpc StreamLogs(LogsRequest) returns (stream LogLine);
 

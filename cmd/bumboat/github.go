@@ -199,7 +199,7 @@ func (g *github) report(ctx context.Context, repo, sha, service, state, descript
 		log.Printf("github report %s: %v", repo, err)
 		return
 	}
-	commitState := map[string]string{"in_progress": "pending", "success": "success", "failure": "failure"}[state]
+	commitState := map[string]string{"in_progress": "pending", "success": "success", "failure": "failure", "error": "error"}[state]
 	if err := g.call(ctx, "POST", "/repos/"+repo+"/statuses/"+sha, tok, map[string]string{
 		"state": commitState, "description": description, "context": "bumboat/" + service,
 	}, nil); err != nil {

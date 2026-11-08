@@ -40,6 +40,7 @@ func init() {
 		{"o O", "services", "new service", func(m *model, _ int) tea.Cmd { return m.startWizard() }},
 		{"dd", "services", "delete the service", func(m *model, _ int) tea.Cmd { return m.deleteService(m.serviceAt(m.cursor), false) }},
 		{"<space>d", "services service", "deploy", func(m *model, _ int) tea.Cmd { return m.action("deploy", m.current()) }},
+		{"<space>c", "services service", "cancel the running or queued deployment", func(m *model, _ int) tea.Cmd { return m.action("cancel", m.current()) }},
 		{"<space>r", "services service", "restart", func(m *model, _ int) tea.Cmd { return m.action("restart", m.current()) }},
 		{"<space>s", "services service", "stop", func(m *model, _ int) tea.Cmd { return m.action("stop", m.current()) }},
 		{"<ctrl-l>", "service", "next tab", func(m *model, n int) tea.Cmd { return m.nextTab(max(n, 1)) }},

@@ -1765,7 +1765,7 @@ const file_bumboat_v1_bumboat_proto_rawDesc = "" +
 	"\x04repo\x18\x01 \x01(\tR\x04repo\x12\x16\n" +
 	"\x06branch\x18\x02 \x01(\tR\x06branch\")\n" +
 	"\x11SuggestBuildReply\x12\x14\n" +
-	"\x05build\x18\x01 \x01(\tR\x05build2\xa3\n" +
+	"\x05build\x18\x01 \x01(\tR\x05build2\xd1\n" +
 	"\n" +
 	"\aBumboat\x12:\n" +
 	"\fListServices\x12\x11.bumboat.v1.Empty\x1a\x17.bumboat.v1.ServiceList\x12=\n" +
@@ -1779,7 +1779,8 @@ const file_bumboat_v1_bumboat_proto_rawDesc = "" +
 	"\x06Deploy\x12\x0f.bumboat.v1.Ref\x1a\x16.bumboat.v1.Deployment\x123\n" +
 	"\bRollback\x12\x0f.bumboat.v1.Ref\x1a\x16.bumboat.v1.Deployment\x12-\n" +
 	"\aRestart\x12\x0f.bumboat.v1.Ref\x1a\x11.bumboat.v1.Empty\x12*\n" +
-	"\x04Stop\x12\x0f.bumboat.v1.Ref\x1a\x11.bumboat.v1.Empty\x12>\n" +
+	"\x04Stop\x12\x0f.bumboat.v1.Ref\x1a\x11.bumboat.v1.Empty\x12,\n" +
+	"\x06Cancel\x12\x0f.bumboat.v1.Ref\x1a\x11.bumboat.v1.Empty\x12>\n" +
 	"\x0fListDeployments\x12\x0f.bumboat.v1.Ref\x1a\x1a.bumboat.v1.DeploymentList\x12<\n" +
 	"\n" +
 	"StreamLogs\x12\x17.bumboat.v1.LogsRequest\x1a\x13.bumboat.v1.LogLine0\x01\x126\n" +
@@ -1856,41 +1857,43 @@ var file_bumboat_v1_bumboat_proto_depIdxs = []int32{
 	1,  // 18: bumboat.v1.Bumboat.Rollback:input_type -> bumboat.v1.Ref
 	1,  // 19: bumboat.v1.Bumboat.Restart:input_type -> bumboat.v1.Ref
 	1,  // 20: bumboat.v1.Bumboat.Stop:input_type -> bumboat.v1.Ref
-	1,  // 21: bumboat.v1.Bumboat.ListDeployments:input_type -> bumboat.v1.Ref
-	16, // 22: bumboat.v1.Bumboat.StreamLogs:input_type -> bumboat.v1.LogsRequest
-	0,  // 23: bumboat.v1.Bumboat.GetSettings:input_type -> bumboat.v1.Empty
-	18, // 24: bumboat.v1.Bumboat.UpdateSettings:input_type -> bumboat.v1.Settings
-	19, // 25: bumboat.v1.Bumboat.ConnectGitHub:input_type -> bumboat.v1.ConnectGitHubRequest
-	0,  // 26: bumboat.v1.Bumboat.ListRepos:input_type -> bumboat.v1.Empty
-	1,  // 27: bumboat.v1.Bumboat.ListBranches:input_type -> bumboat.v1.Ref
-	24, // 28: bumboat.v1.Bumboat.SuggestBuild:input_type -> bumboat.v1.SuggestBuildRequest
-	5,  // 29: bumboat.v1.Bumboat.Backup:input_type -> bumboat.v1.BackupRequest
-	0,  // 30: bumboat.v1.Bumboat.Upgrade:input_type -> bumboat.v1.Empty
-	7,  // 31: bumboat.v1.Bumboat.Shell:input_type -> bumboat.v1.ShellInput
-	13, // 32: bumboat.v1.Bumboat.ListServices:output_type -> bumboat.v1.ServiceList
-	13, // 33: bumboat.v1.Bumboat.WatchServices:output_type -> bumboat.v1.ServiceList
-	11, // 34: bumboat.v1.Bumboat.GetService:output_type -> bumboat.v1.Service
-	11, // 35: bumboat.v1.Bumboat.CreateService:output_type -> bumboat.v1.Service
-	11, // 36: bumboat.v1.Bumboat.UpdateService:output_type -> bumboat.v1.Service
-	0,  // 37: bumboat.v1.Bumboat.DeleteService:output_type -> bumboat.v1.Empty
-	11, // 38: bumboat.v1.Bumboat.RenameService:output_type -> bumboat.v1.Service
-	14, // 39: bumboat.v1.Bumboat.Deploy:output_type -> bumboat.v1.Deployment
-	14, // 40: bumboat.v1.Bumboat.Rollback:output_type -> bumboat.v1.Deployment
-	0,  // 41: bumboat.v1.Bumboat.Restart:output_type -> bumboat.v1.Empty
-	0,  // 42: bumboat.v1.Bumboat.Stop:output_type -> bumboat.v1.Empty
-	15, // 43: bumboat.v1.Bumboat.ListDeployments:output_type -> bumboat.v1.DeploymentList
-	17, // 44: bumboat.v1.Bumboat.StreamLogs:output_type -> bumboat.v1.LogLine
-	18, // 45: bumboat.v1.Bumboat.GetSettings:output_type -> bumboat.v1.Settings
-	18, // 46: bumboat.v1.Bumboat.UpdateSettings:output_type -> bumboat.v1.Settings
-	20, // 47: bumboat.v1.Bumboat.ConnectGitHub:output_type -> bumboat.v1.ConnectGitHubReply
-	22, // 48: bumboat.v1.Bumboat.ListRepos:output_type -> bumboat.v1.RepoList
-	23, // 49: bumboat.v1.Bumboat.ListBranches:output_type -> bumboat.v1.BranchList
-	25, // 50: bumboat.v1.Bumboat.SuggestBuild:output_type -> bumboat.v1.SuggestBuildReply
-	6,  // 51: bumboat.v1.Bumboat.Backup:output_type -> bumboat.v1.BackupChunk
-	9,  // 52: bumboat.v1.Bumboat.Upgrade:output_type -> bumboat.v1.UpgradeReply
-	8,  // 53: bumboat.v1.Bumboat.Shell:output_type -> bumboat.v1.ShellOutput
-	32, // [32:54] is the sub-list for method output_type
-	10, // [10:32] is the sub-list for method input_type
+	1,  // 21: bumboat.v1.Bumboat.Cancel:input_type -> bumboat.v1.Ref
+	1,  // 22: bumboat.v1.Bumboat.ListDeployments:input_type -> bumboat.v1.Ref
+	16, // 23: bumboat.v1.Bumboat.StreamLogs:input_type -> bumboat.v1.LogsRequest
+	0,  // 24: bumboat.v1.Bumboat.GetSettings:input_type -> bumboat.v1.Empty
+	18, // 25: bumboat.v1.Bumboat.UpdateSettings:input_type -> bumboat.v1.Settings
+	19, // 26: bumboat.v1.Bumboat.ConnectGitHub:input_type -> bumboat.v1.ConnectGitHubRequest
+	0,  // 27: bumboat.v1.Bumboat.ListRepos:input_type -> bumboat.v1.Empty
+	1,  // 28: bumboat.v1.Bumboat.ListBranches:input_type -> bumboat.v1.Ref
+	24, // 29: bumboat.v1.Bumboat.SuggestBuild:input_type -> bumboat.v1.SuggestBuildRequest
+	5,  // 30: bumboat.v1.Bumboat.Backup:input_type -> bumboat.v1.BackupRequest
+	0,  // 31: bumboat.v1.Bumboat.Upgrade:input_type -> bumboat.v1.Empty
+	7,  // 32: bumboat.v1.Bumboat.Shell:input_type -> bumboat.v1.ShellInput
+	13, // 33: bumboat.v1.Bumboat.ListServices:output_type -> bumboat.v1.ServiceList
+	13, // 34: bumboat.v1.Bumboat.WatchServices:output_type -> bumboat.v1.ServiceList
+	11, // 35: bumboat.v1.Bumboat.GetService:output_type -> bumboat.v1.Service
+	11, // 36: bumboat.v1.Bumboat.CreateService:output_type -> bumboat.v1.Service
+	11, // 37: bumboat.v1.Bumboat.UpdateService:output_type -> bumboat.v1.Service
+	0,  // 38: bumboat.v1.Bumboat.DeleteService:output_type -> bumboat.v1.Empty
+	11, // 39: bumboat.v1.Bumboat.RenameService:output_type -> bumboat.v1.Service
+	14, // 40: bumboat.v1.Bumboat.Deploy:output_type -> bumboat.v1.Deployment
+	14, // 41: bumboat.v1.Bumboat.Rollback:output_type -> bumboat.v1.Deployment
+	0,  // 42: bumboat.v1.Bumboat.Restart:output_type -> bumboat.v1.Empty
+	0,  // 43: bumboat.v1.Bumboat.Stop:output_type -> bumboat.v1.Empty
+	0,  // 44: bumboat.v1.Bumboat.Cancel:output_type -> bumboat.v1.Empty
+	15, // 45: bumboat.v1.Bumboat.ListDeployments:output_type -> bumboat.v1.DeploymentList
+	17, // 46: bumboat.v1.Bumboat.StreamLogs:output_type -> bumboat.v1.LogLine
+	18, // 47: bumboat.v1.Bumboat.GetSettings:output_type -> bumboat.v1.Settings
+	18, // 48: bumboat.v1.Bumboat.UpdateSettings:output_type -> bumboat.v1.Settings
+	20, // 49: bumboat.v1.Bumboat.ConnectGitHub:output_type -> bumboat.v1.ConnectGitHubReply
+	22, // 50: bumboat.v1.Bumboat.ListRepos:output_type -> bumboat.v1.RepoList
+	23, // 51: bumboat.v1.Bumboat.ListBranches:output_type -> bumboat.v1.BranchList
+	25, // 52: bumboat.v1.Bumboat.SuggestBuild:output_type -> bumboat.v1.SuggestBuildReply
+	6,  // 53: bumboat.v1.Bumboat.Backup:output_type -> bumboat.v1.BackupChunk
+	9,  // 54: bumboat.v1.Bumboat.Upgrade:output_type -> bumboat.v1.UpgradeReply
+	8,  // 55: bumboat.v1.Bumboat.Shell:output_type -> bumboat.v1.ShellOutput
+	33, // [33:56] is the sub-list for method output_type
+	10, // [10:33] is the sub-list for method input_type
 	10, // [10:10] is the sub-list for extension type_name
 	10, // [10:10] is the sub-list for extension extendee
 	0,  // [0:10] is the sub-list for field type_name

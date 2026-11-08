@@ -30,6 +30,7 @@ const (
 	Bumboat_Rollback_FullMethodName        = "/bumboat.v1.Bumboat/Rollback"
 	Bumboat_Restart_FullMethodName         = "/bumboat.v1.Bumboat/Restart"
 	Bumboat_Stop_FullMethodName            = "/bumboat.v1.Bumboat/Stop"
+	Bumboat_Cancel_FullMethodName          = "/bumboat.v1.Bumboat/Cancel"
 	Bumboat_ListDeployments_FullMethodName = "/bumboat.v1.Bumboat/ListDeployments"
 	Bumboat_StreamLogs_FullMethodName      = "/bumboat.v1.Bumboat/StreamLogs"
 	Bumboat_GetSettings_FullMethodName     = "/bumboat.v1.Bumboat/GetSettings"
@@ -58,6 +59,8 @@ type BumboatClient interface {
 	Rollback(ctx context.Context, in *Ref, opts ...grpc.CallOption) (*Deployment, error)
 	Restart(ctx context.Context, in *Ref, opts ...grpc.CallOption) (*Empty, error)
 	Stop(ctx context.Context, in *Ref, opts ...grpc.CallOption) (*Empty, error)
+	// Cancel stops the service's running deployment and drops its queued one.
+	Cancel(ctx context.Context, in *Ref, opts ...grpc.CallOption) (*Empty, error)
 	ListDeployments(ctx context.Context, in *Ref, opts ...grpc.CallOption) (*DeploymentList, error)
 	StreamLogs(ctx context.Context, in *LogsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[LogLine], error)
 	GetSettings(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*Settings, error)
@@ -193,6 +196,16 @@ func (c *bumboatClient) Stop(ctx context.Context, in *Ref, opts ...grpc.CallOpti
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Empty)
 	err := c.cc.Invoke(ctx, Bumboat_Stop_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *bumboatClient) Cancel(ctx context.Context, in *Ref, opts ...grpc.CallOption) (*Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Empty)
+	err := c.cc.Invoke(ctx, Bumboat_Cancel_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -345,6 +358,8 @@ type BumboatServer interface {
 	Rollback(context.Context, *Ref) (*Deployment, error)
 	Restart(context.Context, *Ref) (*Empty, error)
 	Stop(context.Context, *Ref) (*Empty, error)
+	// Cancel stops the service's running deployment and drops its queued one.
+	Cancel(context.Context, *Ref) (*Empty, error)
 	ListDeployments(context.Context, *Ref) (*DeploymentList, error)
 	StreamLogs(*LogsRequest, grpc.ServerStreamingServer[LogLine]) error
 	GetSettings(context.Context, *Empty) (*Settings, error)
@@ -399,6 +414,9 @@ func (UnimplementedBumboatServer) Restart(context.Context, *Ref) (*Empty, error)
 }
 func (UnimplementedBumboatServer) Stop(context.Context, *Ref) (*Empty, error) {
 	return nil, status.Error(codes.Unimplemented, "method Stop not implemented")
+}
+func (UnimplementedBumboatServer) Cancel(context.Context, *Ref) (*Empty, error) {
+	return nil, status.Error(codes.Unimplemented, "method Cancel not implemented")
 }
 func (UnimplementedBumboatServer) ListDeployments(context.Context, *Ref) (*DeploymentList, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListDeployments not implemented")
@@ -645,6 +663,24 @@ func _Bumboat_Stop_Handler(srv interface{}, ctx context.Context, dec func(interf
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Bumboat_Cancel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Ref)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BumboatServer).Cancel(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Bumboat_Cancel_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BumboatServer).Cancel(ctx, req.(*Ref))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Bumboat_ListDeployments_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(Ref)
 	if err := dec(in); err != nil {
@@ -864,6 +900,10 @@ var Bumboat_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Stop",
 			Handler:    _Bumboat_Stop_Handler,
+		},
+		{
+			MethodName: "Cancel",
+			Handler:    _Bumboat_Cancel_Handler,
 		},
 		{
 			MethodName: "ListDeployments",
